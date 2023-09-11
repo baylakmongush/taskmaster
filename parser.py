@@ -19,7 +19,13 @@ class Parser:
                     else:
                         print("File content is not a valid YAML dictionary: " + self.file_path)
                 except yaml.YAMLError as exc:
-                    print("Error parsing YAML: " + str(exc))
+                    if hasattr(exc, 'problem_mark'):
+                        # Get the error location in the file
+                        mark = exc.problem_mark
+                        error_location = f"Line {mark.line + 1}, Column {mark.column + 1}"
+                        print(f"YAML parsing error at {error_location}: {exc.problem}")
+                    else:
+                        print("Error parsing YAML: " + str(exc))
         else:
             print("Invalid or missing .conf file: " + self.file_path)
 
