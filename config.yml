@@ -1,0 +1,10 @@
+programs:
+  - name: myapp
+    command: /path/to/myapp
+    autostart: true
+    autorestart: true
+    redirect_stderr: true
+    stdout_logfile: /var/log/myapp.log
+    stderr_logfile: /var/log/myapp_error.log
+    environment:
+      APP_ENV: production
