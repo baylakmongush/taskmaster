@@ -3,14 +3,14 @@ import yaml
 import os
 
 
-# This class is used to parse the taskmaster.conf file and return the data as a dictionary
+# This class is used to parse the taskmaster.yaml file and return the data as a dictionary
 class Parser:
 
     def __init__(self, file_path):
         self.file_path = file_path
 
     def parse(self):
-        if os.path.isfile(self.file_path) and self.file_path.lower().endswith('.conf'):
+        if os.path.isfile(self.file_path) and (self.file_path.lower().endswith('.yaml') or self.file_path.lower().endswith('.yml')):
             with open(self.file_path, 'r') as stream:
                 try:
                     config_data = yaml.safe_load(stream)
@@ -35,7 +35,7 @@ def main():
     parser = argparse.ArgumentParser(description='Taskmaster Configuration Parser')
 
     # Add an optional argument for specifying the configuration file
-    parser.add_argument('-c', '--config', metavar='CONFIG_FILE', help='Specify the .conf configuration file')
+    parser.add_argument('-c', '--config', metavar='CONFIG_FILE', help='Specify the .yaml or .yml configuration file')
 
     # Parse the command-line arguments
     args = parser.parse_args()
@@ -45,8 +45,8 @@ def main():
         parser = Parser(args.config)
         print(parser.parse())
     else:
-        # Otherwise, use the default 'taskmaster.conf' file
-        parser = Parser('taskmaster.conf')
+        # Otherwise, use the default 'taskmaster.yaml' file
+        parser = Parser('taskmaster.yaml')
         print(parser.parse())
 
 
