@@ -27,7 +27,7 @@ class Parser:
                     else:
                         print("Error parsing YAML: " + str(exc))
         else:
-            print("Invalid or missing .conf file: " + self.file_path)
+            print("Invalid or missing .yaml or .yml file: " + self.file_path)
 
 
 def main():
