@@ -45,14 +45,15 @@ def main():
             if os.path.isfile(path):
                 config_path = path
                 break
-        else:
-            print("No configuration file provided and no default configuration file found.")
-            return
+            else:
+                print("No configuration file provided and no default configuration file found.")
+                return
 
     config_parser = Parser(config_path)
     config_data = config_parser.parse()
     if config_data:
         print("Configuration data loaded successfully.")
+        print(config_data)
     else:
         print("Failed to load configuration data.")
 
