@@ -30,6 +30,29 @@ class Parser:
         else:
             print("Invalid or missing .yaml or .yml file: " + self.file_path)
 
+def create_parser():
+    default_config_paths = ['/etc/taskmaster.yaml', '/etc/taskmaster/taskmaster.yaml', '/etc/taskmaster.yml', '/etc/taskmaster/taskmaster.yml']
+
+    parser = argparse.ArgumentParser(description='Taskmaster')
+    parser.add_argument('-c', '--config', type=str, help='Path to the configuration file')
+    args = parser.parse_args()
+
+    if args.config is not None:
+        config_path = args.config
+    else:
+        for path in default_config_paths:
+            if os.path.isfile(path):
+                config_path = path
+                break
+            else:
+                print("No configuration file provided and no default configuration file found.")
+                return
+
+    config_parser = Parser(config_path)
+
+    return config_parser
+
+
 
 def main():
     default_config_paths = ['/etc/taskmaster.yaml', '/etc/taskmaster/taskmaster.yaml', '/etc/taskmaster.yml', '/etc/taskmaster/taskmaster.yml']
@@ -51,12 +74,12 @@ def main():
 
     config_parser = Parser(config_path)
     config_data = config_parser.parse()
+
     if config_data:
         print("Configuration data loaded successfully.")
         print(config_data)
     else:
         print("Failed to load configuration data.")
-
 
 if __name__ == '__main__':
     main()
