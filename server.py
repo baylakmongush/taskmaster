@@ -1,4 +1,4 @@
-import socket
+import socket, json
 
 
 def daemon():
@@ -13,13 +13,18 @@ def daemon():
         print(f"Accepted connection from {address}")
 
         while True:
-            data = client_socket.recv(1024)
+            data = client_socket.recv(4098)
             if not data:
                 break
 
-            command = data.decode()
+            parametrs = json.loads(data)
 
         client_socket.close()
+        print ('Received', parametrs)
+        
+        array = parametrs.split(";")
+        print (array)
+        for ()
 
 
 if __name__ == "__main__":
