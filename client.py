@@ -49,23 +49,25 @@ def add_program(programs):
         "numprocs": get_input("Enter numprocs: ", int, "Please enter a valid integer for numprocs."),
         "autostart": validate_boolean_input("Enter autostart (true/false): "),
         "autorestart": validate_boolean_input("Enter autorestart (true/false): "),
-        "exitcodes_count": get_input("Enter exitcodes_count: ", int,
-                                       "Please enter a valid integer for environment_count."),
-        "exitcodes": {},
+        "exitcodes": [],  # Initialize as an empty list
         "startsecs": get_input("Enter startsecs: ", int, "Please enter a valid integer for startsecs."),
         "startretries": get_input("Enter startretries: ", int, "Please enter a valid integer for startretries."),
         "stopsignal": input("Enter stopsignal: "),
         "stopwaitsecs": get_input("Enter stopwaitsecs: ", int, "Please enter a valid integer for stopwaitsecs."),
         "stdout": input("Enter stdout: "),
         "stderr": input("Enter stderr: "),
-        "environment_count": get_input("Enter environment_count: ", int,
-                                       "Please enter a valid integer for environment_count."),
         "environment": {},
         "workingdir": input("Enter workingdir: "),
         "umask": input("Enter umask: ")
     }
 
-    for i in range(programs[program_name]["environment_count"]):
+    exitcodes_count = get_input("Enter exitcodes_count: ", int, "Please enter a valid integer for exitcodes_count.")
+    for i in range(exitcodes_count):
+        exitcode = get_input(f"Enter exit code {i + 1}: ", int, "Please enter a valid integer for exit code.")
+        programs[program_name]["exitcodes"].append(exitcode)
+
+    environment_count = get_input("Enter environment_count: ", int, "Please enter a valid integer for environment_count.")
+    for i in range(environment_count):
         key = input(f"Enter ENV_VAR{i + 1}: ")
         value = safe_input(f"Enter value for ENV_VAR{i + 1}: ")
         if value is None:
@@ -74,7 +76,6 @@ def add_program(programs):
 
 
 def control_program():
-
     try:
         try:
             client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
