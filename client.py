@@ -1,5 +1,6 @@
 import json
 import socket
+import sys
 
 
 def get_input(prompt, data_type, error_message):
@@ -48,7 +49,9 @@ def add_program(programs):
         "numprocs": get_input("Enter numprocs: ", int, "Please enter a valid integer for numprocs."),
         "autostart": validate_boolean_input("Enter autostart (true/false): "),
         "autorestart": validate_boolean_input("Enter autorestart (true/false): "),
-        "exitcodes": [],
+        "exitcodes_count": get_input("Enter exitcodes_count: ", int,
+                                       "Please enter a valid integer for environment_count."),
+        "exitcodes": {},
         "startsecs": get_input("Enter startsecs: ", int, "Please enter a valid integer for startsecs."),
         "startretries": get_input("Enter startretries: ", int, "Please enter a valid integer for startretries."),
         "stopsignal": input("Enter stopsignal: "),
@@ -71,24 +74,35 @@ def add_program(programs):
 
 
 def control_program():
+
     try:
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect(("localhost", 8888))
-    except ConnectionRefusedError:
-        print("Error: The server is not running or refused the connection.")
-        return
+        try:
+            client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client_socket.connect(("localhost", 8888))
+        except ConnectionRefusedError:
+            print("Error: The server is not running or refused the connection.")
+            return
 
-    programs = {}
+        programs = {}
 
-    while True:
-        add_program(programs)
-        another_program = validate_yes_no_input("Add another program? (yes/no): ")
-        if not another_program:
-            break
+        while True:
+            add_program(programs)
+            another_program = validate_yes_no_input("Add another program? (yes/no): ")
+            if not another_program:
+                break
 
-    data = json.dumps({"programs": programs}).encode('utf-8')
-    client_socket.send(data)
-    print('Sent data')
+        data = json.dumps({"programs": programs}).encode('utf-8')
+        client_socket.send(data)
+        print('Sent data')
+
+    except KeyboardInterrupt:
+        print("\nServer interrupted. Cleaning up and exiting...")
+        client_socket.close()
+        sys.exit(0)
+    except EOFError:
+        print("Error: End of input reached. Please provide a program name.")
+        client_socket.close()
+        sys.exit(0)
 
 
 if __name__ == "__main__":

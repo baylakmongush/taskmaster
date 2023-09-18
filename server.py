@@ -48,6 +48,9 @@ def daemon():
 
             client_socket.close()
             print('Data received and processed')
+            programs_main = {}
+            programs_main['programs'] = programs
+            print(programs_main)
 
     except KeyboardInterrupt:
         print("\nServer interrupted. Cleaning up and exiting...")
