@@ -1,6 +1,6 @@
 programs:
-  program1:
-    command: /path/to/program1
+  sleep:
+    command: sleep 30
     numprocs: 2
     autostart: true
     autorestart: always
@@ -9,15 +9,15 @@ programs:
     startretries: 3
     stopsignal: TERM
     stopwaitsecs: 10
-    stdout: /path/to/program1_stdout.log
-    stderr: /path/to/program1_stderr.log
+    stdout: /tmp/program1_stdout.log
+    stderr: /tmp/program1_stderr.log
     environment:
       ENV_VAR1: value1
       ENV_VAR2: value2
-    workingdir: /path/to/working_dir1
+    workingdir: /tmp
     umask: "022"
-  program2:
-    command: /path/to/program1
+  sleep2:
+    command: sleep 30 
     numprocs: 2
     autostart: true
     autorestart: always
@@ -26,10 +26,10 @@ programs:
     startretries: 3
     stopsignal: TERM
     stopwaitsecs: 10
-    stdout: /path/to/program1_stdout.log
-    stderr: /path/to/program1_stderr.log
+    stdout: /tmp/program2_stdout.log
+    stderr: /tmp/program2_stderr.log
     environment:
       ENV_VAR1: value1
       ENV_VAR2: value2
-    workingdir: /path/to/working_dir1
+    workingdir: /tmp
     umask: "022"
