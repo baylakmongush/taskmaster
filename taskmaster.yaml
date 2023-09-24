@@ -1,33 +1,33 @@
 programs:
   sleep:
-    command: sleep 30
+    command: sleep 10
     numprocs: 2
     autostart: true
     autorestart: always
     exitcodes: [0, 2]
-    startsecs: 10
+    startsecs: 3
     startretries: 3
     stopsignal: TERM
     stopwaitsecs: 10
-    stdout: /tmp/program1_stdout.log
-    stderr: /tmp/program1_stderr.log
+    stdout: /Users/aloysobek/Workspace/Me/taskmaster/out.log
+    stderr: /Users/aloysobek/Workspace/Me/taskmaster/err.log
     environment:
       ENV_VAR1: value1
       ENV_VAR2: value2
     workingdir: /tmp
     umask: "022"
   sleep2:
-    command: sleep 30 
+    command: sleep 10
     numprocs: 2
     autostart: true
     autorestart: always
     exitcodes: [ 0, 2 ]
-    startsecs: 10
+    startsecs: 3
     startretries: 3
     stopsignal: TERM
     stopwaitsecs: 10
-    stdout: /tmp/program2_stdout.log
-    stderr: /tmp/program2_stderr.log
+    stdout: /Users/aloysobek/Workspace/Me/taskmaster/out.log
+    stderr: /Users/aloysobek/Workspace/Me/taskmaster/err.log
     environment:
       ENV_VAR1: value1
       ENV_VAR2: value2
