@@ -46,7 +46,6 @@ class Runner:
         except ChildProcessError:
             pass
 
-
     def sync_state(self):
         for g in self.process_groups.values():
             for p in g.processes:
@@ -56,7 +55,7 @@ class Runner:
                 if p.status == process.Status.starting and time.time() - p.started_at > g.initial_delay:
                     p.status = process.Status.running
 
-                if p.status == process.Status.none:
+                if p.status == process.Status.none and g.autostart == True:
                     self._run_process(g, p)
                 elif p.status == process.Status.stopped and g.restart_policy == process.RestartPolicy.always:
                     self._run_process(g, p)
@@ -65,18 +64,14 @@ class Runner:
                 else:
                     pass
 
+    def update(self):
+        self.status()
+        self.sync_state()
 
-    def loop(self):
-        while True:
-            self.status()
-            self.sync_state()
+        for g in self.process_groups.values():
+            print(g)
 
-            for g in self.process_groups.values():
-                print(g)
-
-            move_cursor_up_and_clear(30)
-
-            time.sleep(1)
+        move_cursor_up_and_clear(30)
 
     def _run_process(self, g: process.ProcessGroup, p: process.Process):
         if p.status != process.Status.none:
@@ -103,9 +98,19 @@ class Runner:
 
             self.processes[pid] = p;
 
+    def get_status(self, name = None):
+        pass
+    
+    def reload_config(self, config):
+        pass
+
 
 if __name__ == "__main__":
     runner = Runner()
+
+    while True:
+        runner.update()
+        time.sleep(1)
 
     runner.loop()
 
