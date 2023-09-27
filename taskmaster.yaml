@@ -1,7 +1,7 @@
 programs:
   sleep:
     command: sleep 10
-    numprocs: 2
+    numprocs: 1000
     autostart: true
     autorestart: always
     exitcodes: [0, 2]

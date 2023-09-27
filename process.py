@@ -1,4 +1,5 @@
 import enum
+import signal
 
 
 class Status(enum.Enum):
@@ -65,6 +66,7 @@ class ProcessGroup:
         self.alternative_stderr = config["stderr"]
         self.cmd = config["command"].split()
         self.env = config["environment"]
+
         self.processes = [Process(config["exitcodes"]) for i in range(config["numprocs"])]
 
     def _restart_policy_from_string(self, string):
