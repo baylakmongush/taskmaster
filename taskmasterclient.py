@@ -44,21 +44,16 @@ def get_env_variables():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TaskMasterCtl client")
-    parser.add_argument("command", nargs=argparse.REMAINDER, default=["interactive"], help="Command to send (default is 'interactive')")
+    parser.add_argument("command", nargs=argparse.REMAINDER, help="Command to send")
     args = parser.parse_args()
 
     host, port = get_env_variables()
 
     client = TaskMasterCtlClient(host, port)
 
-    if args.command[0].lower() == "interactive":
-        while True:
-            user_input = input("(taskmasterctl) ").strip()
-            if user_input == "quit":
-                break
-            client.send_command(user_input)
-    else:
+    if args.command:
         command = " ".join(args.command)
         client.send_command(command)
 
     client.close()
+
