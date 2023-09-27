@@ -51,9 +51,14 @@ if __name__ == "__main__":
 
     client = TaskMasterCtlClient(host, port)
 
-    if args.command:
+    if not args.command:
+        while True:
+            user_input = input("(taskmasterctl) ").strip()
+            if user_input == "quit":
+                break
+            client.send_command(user_input)
+    else:
         command = " ".join(args.command)
         client.send_command(command)
 
     client.close()
-
