@@ -20,7 +20,7 @@ class TaskMasterCtlServer:
     def start(self):
         self.server_socket.bind((self.host, self.port))
         self.server_socket.listen(1)
-        print(f"Сервер слушает на {self.host}:{self.port}")
+        print(f"Server listen to {self.host}:{self.port}")
 
     def handle_client(self, client_socket):
         while True:
