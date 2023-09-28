@@ -1,6 +1,8 @@
 import os
 import socket
 import argparse
+import parser_config
+import argparse
 
 # Запустите этот клиентский код следующим образом:
 # По умолчанию, сервер будет слушать localhost:8080.
@@ -44,16 +46,31 @@ def get_env_variables():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="TaskMasterCtl client")
-    parser.add_argument("command", nargs=argparse.REMAINDER, help="Command to send")
+    parser.add_argument("command", nargs="+", help="Command to send")
+    parser.add_argument("-c", "--config", type=str, help="Path to the configuration file")
+
     args = parser.parse_args()
 
     host, port = get_env_variables()
+
+    config_path = args.config
+
+    if config_path is not None:
+        config_parser = parser_config.Parser()
+        config_parser.parse_from_file(config_path)
+        config_data = config_parser.get_config_data()
+        print(config_data)
+    else:
+        config_parser = parser_config.Parser()
+        config_parser.parse_from_default_paths()
+        config_data = config_parser.get_config_data()
+        print(config_data)
 
     client = TaskMasterCtlClient(host, port)
 
     if not args.command:
         while True:
-            user_input = input("(taskmasterctl) ").strip()
+            user_input = input("(taskmaster) ").strip()
             if user_input == "quit":
                 break
             client.send_command(user_input)
