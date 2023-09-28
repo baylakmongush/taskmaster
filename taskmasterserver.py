@@ -1,5 +1,6 @@
 import socket
 import os
+import parser_config
 
 # Запустите этот серверный код следующим образом:
 # python taskmasterserver.py
@@ -44,6 +45,10 @@ class TaskMasterCtlServer:
                 self.reload_task(client_socket, task_name)
             elif command == "quit":
                 break
+            elif command.startswith("config "):
+                config_str = command[len("config "):]
+                config_data = parser_config.deserialize_config(config_str)
+                self.update_config(config_data, client_socket)
             else:
                 response = f"Unknown command: {command}\n"
                 client_socket.send(response.encode())
@@ -71,6 +76,10 @@ class TaskMasterCtlServer:
     def reload_task(self, client_socket, task_name):
         # Здесь код для перезапуска задачи.
         response = f"Reloading task: {task_name}\n"
+        client_socket.send(response.encode())
+
+    def update_config(self, config_data, client_socket):
+        response = "Updated server configuration\n"
         client_socket.send(response.encode())
 
     def run(self):

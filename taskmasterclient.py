@@ -34,6 +34,12 @@ class TaskMasterCtlClient:
         response = self.client_socket.recv(1024).decode()
         print(response)
 
+    def send_config(self, config_data):
+        config_str = parser_config.serialize_config(config_data)
+        self.client_socket.send(f"config {config_str}".encode())
+        response = self.client_socket.recv(1024).decode()
+        print(response)
+
     def close(self):
         self.client_socket.close()
 
@@ -53,20 +59,19 @@ if __name__ == "__main__":
 
     host, port = get_env_variables()
 
+    client = TaskMasterCtlClient(host, port)
+
     config_path = args.config
+    config_parser = parser_config.Parser()
 
     if config_path is not None:
-        config_parser = parser_config.Parser()
         config_parser.parse_from_file(config_path)
-        config_data = config_parser.get_config_data()
-        print(config_data)
     else:
-        config_parser = parser_config.Parser()
         config_parser.parse_from_default_paths()
-        config_data = config_parser.get_config_data()
-        print(config_data)
 
-    client = TaskMasterCtlClient(host, port)
+    config_data = config_parser.get_config_data()
+    client.send_config(config_data)
+    print(config_data)
 
     if not args.command:
         while True:
