@@ -1,7 +1,10 @@
 import os
 import socket
+import sys
+
 import parser_config
 import argparse
+
 
 # Запустите этот клиентский код следующим образом:
 # По умолчанию, сервер будет слушать localhost:8080.
@@ -43,18 +46,17 @@ class TaskMasterCtlClient:
 
 
 if __name__ == "__main__":
+    socket_path = "./taskmaster_socket"  # Путь к UNIX domain socket
+    client = TaskMasterCtlClient(socket_path)
 
     parser = argparse.ArgumentParser(description="TaskMasterCtl client")
-    parser.add_argument("command", nargs="+", help="Command to send")
+    parser.add_argument("command", nargs="*", help="Command to send")
     parser.add_argument("-c", "--config", type=str, help="Path to the configuration file")
 
     args = parser.parse_args()
 
     config_path = args.config
     config_parser = parser_config.Parser()
-
-    socket_path = "./taskmaster_socket"  # Путь к UNIX domain socket
-    client = TaskMasterCtlClient(socket_path)
 
     if config_path is not None:
         config_parser.parse_from_file(config_path)
@@ -63,16 +65,17 @@ if __name__ == "__main__":
 
     config_data = config_parser.get_config_data()
     client.send_config(config_data)
-    print(config_data)
 
-    if not args.command:
+    if args.command:
+        command = " ".join(args.command)
+        client.send_command(command)
+    else:
+        print("Starting interactive mode.")
         while True:
-            user_input = input("(taskmaster) ").strip()
+            user_input = input("taskmaster> ").strip()
             if user_input == "quit":
                 break
             client.send_command(user_input)
-    else:
-        command = " ".join(args.command)
-        client.send_command(command)
 
     client.close()
+
