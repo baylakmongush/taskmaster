@@ -13,15 +13,16 @@ import parser_config
 
 
 class TaskMasterCtlServer:
-    def __init__(self, host, port):
-        self.host = host
-        self.port = port
-        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    def __init__(self, socket_path):
+        self.socket_path = socket_path
+        self.server_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 
     def start(self):
-        self.server_socket.bind((self.host, self.port))
+        if os.path.exists(self.socket_path):
+            os.unlink(self.socket_path)
+        self.server_socket.bind(self.socket_path)
         self.server_socket.listen(1)
-        print(f"Server listen to {self.host}:{self.port}")
+        print(f"Server listen to socket: {self.socket_path}")
 
     def handle_client(self, client_socket):
         while True:
@@ -97,8 +98,6 @@ class TaskMasterCtlServer:
 
 
 if __name__ == "__main__":
-    host = os.getenv("TASKMASTERCTL_HOST", "localhost")
-    port = int(os.getenv("TASKMASTERCTL_PORT", "8080"))
-
-    server = TaskMasterCtlServer(host, port)
+    socket_path = "./taskmaster_socket"  # Путь к UNIX domain socket
+    server = TaskMasterCtlServer(socket_path)
     server.run()

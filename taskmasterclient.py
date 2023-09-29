@@ -22,11 +22,10 @@ import argparse
 
 
 class TaskMasterCtlClient:
-    def __init__(self, host, port):
-        self.host = host
-        self.port = port
-        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.client_socket.connect((self.host, self.port))
+    def __init__(self, socket_path):
+        self.socket_path = socket_path
+        self.client_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.client_socket.connect(self.socket_path)
 
     def send_command(self, command):
         self.client_socket.send(command.encode())
@@ -43,25 +42,19 @@ class TaskMasterCtlClient:
         self.client_socket.close()
 
 
-def get_env_variables():
-    host = os.getenv("TASKMASTERCTL_HOST", "localhost")
-    port = int(os.getenv("TASKMASTERCTL_PORT", "8080"))
-    return host, port
-
-
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser(description="TaskMasterCtl client")
     parser.add_argument("command", nargs="+", help="Command to send")
     parser.add_argument("-c", "--config", type=str, help="Path to the configuration file")
 
     args = parser.parse_args()
 
-    host, port = get_env_variables()
-
-    client = TaskMasterCtlClient(host, port)
-
     config_path = args.config
     config_parser = parser_config.Parser()
+
+    socket_path = "./taskmaster_socket"  # Путь к UNIX domain socket
+    client = TaskMasterCtlClient(socket_path)
 
     if config_path is not None:
         config_parser.parse_from_file(config_path)
