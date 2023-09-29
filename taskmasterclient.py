@@ -1,7 +1,5 @@
-import os
 import socket
-import sys
-
+import readline
 import parser_config
 import argparse
 
@@ -67,10 +65,11 @@ if __name__ == "__main__":
         command = " ".join(args.command)
         client.send_command(command)
     else:
-        print("Starting interactive mode.")
         while True:
             user_input = input("taskmaster> ").strip()
             if user_input == "quit":
+                break
+            if user_input == "exit":
                 break
             client.send_command(user_input)
 

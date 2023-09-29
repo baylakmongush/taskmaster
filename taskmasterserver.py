@@ -29,8 +29,8 @@ class TaskMasterCtlServer:
             "quit": "quit\t\tExit the taskmasterd shell.",
             "exit": "exit\t\tExit the taskmasterd shell.",
             "version": "version\t\tShow the version of the remote taskmasterd process"
-
         }
+        self.program_status = {}
 
     def start(self):
         if os.path.exists(self.socket_path):
@@ -45,43 +45,58 @@ class TaskMasterCtlServer:
             if not command:
                 break
 
-            if command.startswith("start "):
-                task_name = command[len("start "):]
-                self.start_task(client_socket, task_name)
-            elif command == "start":
-                self.send_command_help(client_socket, "start")
-            elif command.startswith("stop "):
-                task_name = command[len("stop "):]
-                self.stop_task(client_socket, task_name)
-            elif command == "stop":
-                self.send_command_help(client_socket, "stop")
-            elif command.startswith("status "):
-                task_name = command[len("status "):]
-                self.status_task(client_socket, task_name)
-            elif command == "reread":
+            parts = command.split()
+            if len(parts) == 0:
+                continue
+
+            action = parts[0]
+            args = parts[1:]
+
+            if action == "start":
+                if args:
+                    task_name = " ".join(args)
+                    self.start_task(client_socket, task_name)
+                else:
+                    self.send_command_help(client_socket, "start")
+            elif action == "stop":
+                if args:
+                    task_name = " ".join(args)
+                    self.stop_task(client_socket, task_name)
+                else:
+                    self.send_command_help(client_socket, "stop")
+            elif action == "status":
+                if args:
+                    task_name = " ".join(args)
+                    self.get_status_task(client_socket, task_name)
+                else:
+                    status_info = self.get_all_program_status()
+                    client_socket.send(status_info.encode())
+            elif action == "reread":
                 self.reread(client_socket)
-            elif command.startswith("reload "):
-                task_name = command[len("reload "):]
-                self.reload_task(client_socket, task_name)
-            elif command == "quit":
+            elif action == "reload":
+                if args:
+                    task_name = " ".join(args)
+                    self.reload_task(client_socket, task_name)
+                else:
+                    self.send_command_help(client_socket, "reload")
+            elif action == "quit":
                 break
-            elif command == "exit":
+            elif action == "exit":
                 break
-            elif command.startswith("config "):
-                config_str = command[len("config "):]
-                config_data = parser_config.deserialize_config(config_str)
-                self.update_config(config_data, client_socket)
-            elif command == "help":
-                self.send_help_info(client_socket)
-            elif command.startswith("help "):
-                cmd_parts = command.split(" ")
-                if len(cmd_parts) == 2:
-                    cmd_to_help = cmd_parts[1]
+            elif action == "config":
+                if args:
+                    config_str = " ".join(args)
+                    config_data = parser_config.deserialize_config(config_str)
+                    self.update_config(config_data, client_socket)
+                else:
+                    self.send_command_help(client_socket, "config")
+            elif action == "help":
+                if args:
+                    cmd_to_help = args[0]
                     self.send_command_help(client_socket, cmd_to_help)
                 else:
-                    response = "Invalid help command format. Usage: help [command]\n"
-                    client_socket.send(response.encode())
-            elif command == "version":
+                    self.send_help_info(client_socket)
+            elif action == "version":
                 response = "1.0\n"
                 client_socket.send(response.encode())
             else:
@@ -90,17 +105,23 @@ class TaskMasterCtlServer:
 
     def start_task(self, client_socket, task_name):
         # Здесь код для запуска задачи.
+        self.update_program_status(task_name, "STARTED")
         response = f"{task_name}: started\n"
         client_socket.send(response.encode())
 
     def stop_task(self, client_socket, task_name):
         # Здесь код для остановки задачи.
+        self.update_program_status(task_name, "STOPPED")
         response = f"{task_name}: stopped\n"
         client_socket.send(response.encode())
 
-    def status_task(self, client_socket, task_name):
+    def get_all_program_status(self):
+        status_info = "\n".join([f"{name}\t{status}" for name, status in self.program_status.items()])
+        return status_info
+
+    def get_status_task(self, client_socket, task_name):
         # Здесь код для проверки статуса задачи.
-        status_info = self.check_task_status(task_name) # информация о статусе
+        status_info = task_name #self.check_task_status(task_name) # информация о статусе
 
         if status_info is not None:
             response = f"{task_name} {status_info}\n"
@@ -136,6 +157,9 @@ class TaskMasterCtlServer:
         else:
             response = f"Help information not available for command: {command}\n"
             client_socket.send(response.encode())
+
+    def update_program_status(self, program_name, status):
+        self.program_status[program_name] = status
 
     def run(self):
         self.start()
