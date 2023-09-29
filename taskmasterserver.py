@@ -37,7 +37,7 @@ class TaskMasterCtlServer:
                 self.stop_task(client_socket, task_name)
             elif command.startswith("status "):
                 task_name = command[len("status "):]
-                self.get_status(client_socket, task_name)
+                self.status_task(client_socket, task_name)
             elif command == "reread":
                 self.reread(client_socket)
             elif command.startswith("reload "):
@@ -55,17 +55,23 @@ class TaskMasterCtlServer:
 
     def start_task(self, client_socket, task_name):
         # Здесь код для запуска задачи.
-        response = f"Starting task: {task_name}\n"
+        response = f"{task_name}: started\n"
         client_socket.send(response.encode())
 
     def stop_task(self, client_socket, task_name):
         # Здесь код для остановки задачи.
-        response = f"Stopping task: {task_name}\n"
+        response = f"{task_name}: stopped\n"
         client_socket.send(response.encode())
 
-    def get_status(self, client_socket, task_name):
+    def status_task(self, client_socket, task_name):
         # Здесь код для проверки статуса задачи.
-        response = f"Task status: {task_name}\n"
+        status_info = self.check_task_status(task_name) # информация о статусе
+
+        if status_info is not None:
+            response = f"{task_name} {status_info}\n"
+        else:
+            response = f"{task_name} UNKNOWN\n"
+
         client_socket.send(response.encode())
 
     def reread(self, client_socket):

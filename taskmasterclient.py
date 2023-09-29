@@ -1,6 +1,5 @@
 import os
 import socket
-import argparse
 import parser_config
 import argparse
 
