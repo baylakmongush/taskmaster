@@ -7,11 +7,8 @@ import argparse
 
 
 # Запустите этот клиентский код следующим образом:
-# По умолчанию, сервер будет слушать localhost:8080.
-# Вы можете настроить хост и порт, установив соответствующие переменные окружения:
-# export TASKMASTERCTL_HOST=ваш_хост
-# export TASKMASTERCTL_PORT=ваш_порт
-# Затем запустите клиентский код с командой.
+# По умолчанию, taskmaster_socket находится в текущей директории.
+# Если вы хотите изменить путь к taskmaster_socket, то измените его в taskmasterserver.py и taskmasterclient.py
 #
 # python taskmasterclient.py [команда] [название задачи]
 # Команды: start, stop, status, reread, reload, quit

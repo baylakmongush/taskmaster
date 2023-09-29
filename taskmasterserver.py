@@ -5,11 +5,7 @@ import parser_config
 # Запустите этот серверный код следующим образом:
 # python taskmasterserver.py
 #
-# По умолчанию, сервер будет слушать localhost:8080.
-# Вы можете настроить хост и порт, установив соответствующие переменные окружения:
-# export TASKMASTERCTL_HOST=ваш_хост
-# export TASKMASTERCTL_PORT=ваш_порт
-# Затем запустите серверный код.
+# По умолчанию, из файла taskmaster_socket будет создан UNIX domain socket.
 
 
 class TaskMasterCtlServer:
