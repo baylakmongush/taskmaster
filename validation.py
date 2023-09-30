@@ -1,5 +1,6 @@
 import sys
 from umask import validate_umask
+import os
 
 # Purpose: Parse config file and validate it
 
@@ -68,12 +69,12 @@ def validate_config(config):
             print(f"Error: 'autorestart' must be a string from the list {autorestart} in the configuration for program '{program_name}'.")
             sys.exit(1)
 
-        if not isinstance(program_config['stdout'], str):
-            print(f"Error: 'stdout' must be a string in the configuration for program '{program_name}'.")
+        if not os.path.exists(program_config['stdout']):
+            print(f"Error: 'stdout' path '{program_config['stdout']}' does not exist for program '{program_name}'.")
             sys.exit(1)
 
-        if not isinstance(program_config['stderr'], str):
-            print(f"Error: 'stderr' must be a string in the configuration for program '{program_name}'.")
+        if not os.path.exists(program_config['stderr']):
+            print(f"Error: 'stderr' path '{program_config['stderr']}' does not exist for program '{program_name}'.")
             sys.exit(1)
 
         if not isinstance(program_config['workingdir'], str):
