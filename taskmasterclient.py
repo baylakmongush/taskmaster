@@ -4,6 +4,7 @@ import parser_config
 import argparse
 import sys
 import os
+from serialization import serialize_config
 
 
 # Запустите этот клиентский код следующим образом:
@@ -42,7 +43,7 @@ class TaskMasterCtlClient:
             sys.exit(0)
 
     def send_config(self, config_data):
-        config_str = parser_config.serialize_config(config_data)
+        config_str = serialize_config(config_data)
         try:
             self.client_socket.send(f"config {config_str}".encode())
             response = self.client_socket.recv(1024).decode()

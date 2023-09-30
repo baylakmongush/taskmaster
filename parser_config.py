@@ -1,24 +1,17 @@
-import argparse
 import yaml
 import os
+from validation import validate_config
 
+def parse_config(config_file):
+    with open(config_file, 'r') as file:
+        try:
+            config = yaml.safe_load(file)
+            validate_config(config)
+            return config
+        except yaml.YAMLError as e:
+            print(f"Ошибка при чтении конфигурационного файла: {e}")
+            return None
 
-def serialize_config(config_data):
-    try:
-        config_str = yaml.dump(config_data, default_flow_style=False)
-        return config_str
-    except Exception as e:
-        print(f"Error serializing config: {str(e)}")
-        return None
-
-
-def deserialize_config(config_str):
-    try:
-        config_data = yaml.safe_load(config_str)
-        return config_data
-    except Exception as e:
-        print(f"Error deserializing config: {str(e)}")
-        return None
 
 class Parser:
     def __init__(self):
@@ -32,6 +25,7 @@ class Parser:
                     config_data = yaml.safe_load(stream)
                     if config_data is not None and isinstance(config_data, dict):
                         self.config_data = config_data
+                        validate_config(config_data)
                     else:
                         print("File content is not a valid YAML dictionary: " + file_path)
                 except yaml.YAMLError as exc:
