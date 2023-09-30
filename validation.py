@@ -21,6 +21,8 @@ def validate_config(config):
         required_params = ['command', 'numprocs', 'autostart', 'autorestart', 'exitcodes', 'startsecs', 'startretries',
                            'stopsignal', 'stopwaitsecs', 'stdout', 'stderr', 'environment', 'workingdir', 'umask']
         autorestart = ['never', 'always', 'on_failure']
+        stopsignal = ['TERM', 'HUP', 'INT', 'QUIT', 'KILL', 'USR1', 'USR2']
+
         for param in required_params:
             if param not in program_config:
                 print(f"Error: Required parameter '{param}' is missing in the configuration for program '{program_name}'.")
@@ -46,8 +48,8 @@ def validate_config(config):
             umask_value = program_config['umask']
             validate_umask(umask_value, program_name)
 
-        if not isinstance(program_config['stopsignal'], str):
-            print(f"Error: 'stopsignal' must be a string in the configuration for program '{program_name}'.")
+        if not isinstance(program_config['stopsignal'], str) or program_config['stopsignal'] not in stopsignal:
+            print(f"Error: 'stopsignal' must be a string from the list {stopsignal} in the configuration for program '{program_name}'.")
             sys.exit(1)
 
         if not isinstance(program_config['environment'], dict):

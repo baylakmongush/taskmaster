@@ -3,7 +3,6 @@ import readline
 import parser_config
 import argparse
 import sys
-import os
 from serialization import serialize_config
 
 
