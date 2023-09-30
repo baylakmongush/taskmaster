@@ -44,27 +44,25 @@ def validate_config(config):
 
         if 'umask' in program_config:
             umask_value = program_config['umask']
-            if isinstance(umask_value, int) and 0 <= umask_value <= 0o777:
-                if umask_value != os.umask(umask_value):
-                    print(
-                        f"Error: 'umask' value ({umask_value:o}) does not match the system's umask ({os.umask():o}) in the configuration for program '{program_name}'.")
-                    sys.exit(1)
-            elif isinstance(umask_value, str):
-                try:
-                    umask_value = int(umask_value, 8)
-                    if 0 <= umask_value <= 0o777:
-                        if umask_value != os.umask(umask_value):
-                            print(
-                                f"Error: 'umask' value ({umask_value:o}) does not match the system's umask ({os.umask():o}) in the configuration for program '{program_name}'.")
-                            sys.exit(1)
-                    else:
+            if isinstance(umask_value, (int, str)):
+                if isinstance(umask_value, str):
+                    try:
+                        umask_value = int(umask_value, 8)
+                    except ValueError:
                         print(
-                            f"Error: 'umask' value ({umask_value:o}) is not a valid octal value in the configuration for program '{program_name}'.")
+                            f"Error: 'umask' value '{umask_value}' is not a valid integer or octal string in the configuration for program '{program_name}'.")
                         sys.exit(1)
-                except ValueError:
+
+                if 0 <= umask_value <= 777:
+                    pass
+                else:
                     print(
-                        f"Error: 'umask' value '{umask_value}' is not a valid integer or octal string in the configuration for program '{program_name}'.")
+                        f"Error: 'umask' value ({umask_value:o}) is not a valid octal value in the configuration for program '{program_name}'.")
                     sys.exit(1)
+            else:
+                print(
+                    f"Error: 'umask' value '{umask_value}' is not a valid integer or octal string in the configuration for program '{program_name}'.")
+                sys.exit(1)
 
         if not isinstance(program_config['stopsignal'], str):
             print(f"Error: 'stopsignal' must be a string in the configuration for program '{program_name}'.")
