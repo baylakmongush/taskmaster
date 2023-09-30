@@ -31,6 +31,7 @@ class TaskMasterCtlServer:
             "version": "version\t\tShow the version of the remote taskmasterd process"
         }
         self.program_status = {}
+        self.should_exit = False
 
     def start(self):
         if os.path.exists(self.socket_path):
@@ -163,10 +164,22 @@ class TaskMasterCtlServer:
 
     def run(self):
         self.start()
-        while True:
-            client_socket, _ = self.server_socket.accept()
-            self.handle_client(client_socket)
-            client_socket.close()
+        try:
+            while not self.should_exit:
+                client_socket, _ = self.server_socket.accept()
+                self.handle_client(client_socket)
+                client_socket.close()
+        except KeyboardInterrupt:
+            print("Ctrl+C pressed...")
+            self.shutdown_server()
+        except EOFError:
+            print("Ctrl+D pressed...")
+            self.shutdown_server()
+
+    def shutdown_server(self):
+        # Закрыть серверный сокет и завершить выполнение
+        self.server_socket.close()
+        self.should_exit = True
 
 
 if __name__ == "__main__":

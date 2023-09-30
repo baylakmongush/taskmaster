@@ -2,6 +2,8 @@ import socket
 import readline
 import parser_config
 import argparse
+import sys
+import os
 
 
 # Запустите этот клиентский код следующим образом:
@@ -18,31 +20,48 @@ import argparse
 # [команда] [название задачи]
 # Команды: start, stop, status, reread, reload, quit
 
-
 class TaskMasterCtlClient:
     def __init__(self, socket_path):
         self.socket_path = socket_path
         self.client_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.client_socket.connect(self.socket_path)
+
+    def connect(self):
+        try:
+            self.client_socket.connect(self.socket_path)
+            return True
+        except Exception as e:
+            return False
 
     def send_command(self, command):
-        self.client_socket.send(command.encode())
-        response = self.client_socket.recv(1024).decode()
-        print(response)
+        try:
+            self.client_socket.send(command.encode())
+            response = self.client_socket.recv(1024).decode()
+            print(response)
+        except BrokenPipeError:
+            print("Server connection closed...")
+            sys.exit(0)
 
     def send_config(self, config_data):
         config_str = parser_config.serialize_config(config_data)
-        self.client_socket.send(f"config {config_str}".encode())
-        response = self.client_socket.recv(1024).decode()
-        print(response)
+        try:
+            self.client_socket.send(f"config {config_str}".encode())
+            response = self.client_socket.recv(1024).decode()
+            print(response)
+        except BrokenPipeError:
+            print("Server connection closed...")
+            sys.exit(0)
 
     def close(self):
         self.client_socket.close()
 
 
-if __name__ == "__main__":
+def main():
     socket_path = "./taskmaster_socket"  # Путь к UNIX domain socket
     client = TaskMasterCtlClient(socket_path)
+
+    if not client.connect():
+        print("Error: Server is not running.")
+        sys.exit(1)
 
     parser = argparse.ArgumentParser(description="TaskMasterCtl client")
     parser.add_argument("command", nargs="*", help="Command to send")
@@ -61,17 +80,22 @@ if __name__ == "__main__":
     config_data = config_parser.get_config_data()
     client.send_config(config_data)
 
-    if args.command:
-        command = " ".join(args.command)
-        client.send_command(command)
-    else:
-        while True:
+    while True:
+        try:
             user_input = input("taskmaster> ").strip()
-            if user_input == "quit":
+            if user_input.lower() in ["quit", "exit"]:
                 break
-            if user_input == "exit":
-                break
-            client.send_command(user_input)
+            if user_input:
+                client.send_command(user_input)
+        except KeyboardInterrupt:
+            print("Ctrl+C pressed...")
+            break
+        except EOFError:
+            print("Ctrl+D pressed...")
+            break
 
     client.close()
 
+
+if __name__ == "__main__":
+    main()
