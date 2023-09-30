@@ -2,12 +2,20 @@ import socket
 import os
 from serialization import deserialize_config
 from command_handler import CommandHandler
+import logging
 
 
 # Запустите этот серверный код следующим образом:
 # python taskmasterserver.py
 #
 # По умолчанию, из файла taskmaster_socket будет создан UNIX domain socket.
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    filename='server.log'
+)
 
 
 class TaskMasterCtlServer:
@@ -21,7 +29,7 @@ class TaskMasterCtlServer:
             os.unlink(self.socket_path)
         self.server_socket.bind(self.socket_path)
         self.server_socket.listen(1)
-        print(f"Server listen to socket: {self.socket_path}")
+        logging.info(f"Server listen to socket: {self.socket_path}")
 
     def handle_client(self, client_socket):
         command_handler = CommandHandler()

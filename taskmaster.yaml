@@ -9,8 +9,8 @@ programs:
     startretries: 3
     stopsignal: TERM
     stopwaitsecs: 10
-    stdout: /Users/aloysobek/Workspace/Me/taskmaster/out.log
-    stderr: /Users/aloysobek/Workspace/Me/taskmaster/err.log
+    stdout: ./out.log
+    stderr: ./err.log
     environment:
       ENV_VAR1: value1
       ENV_VAR2: value2
@@ -26,8 +26,8 @@ programs:
     startretries: 3
     stopsignal: TERM
     stopwaitsecs: 10
-    stdout: /Users/aloysobek/Workspace/Me/taskmaster/out.log
-    stderr: /Users/aloysobek/Workspace/Me/taskmaster/err.log
+    stdout: ./out.log
+    stderr: ./err.log
     environment:
       ENV_VAR1: value1
       ENV_VAR2: value2
