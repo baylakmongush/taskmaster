@@ -15,7 +15,7 @@ programs:
       ENV_VAR1: value1
       ENV_VAR2: value2
     workingdir: /tmp
-    umask: "022"
+    umask: "777"
   sleep2:
     command: sleep 10
     numprocs: 2
@@ -32,4 +32,4 @@ programs:
       ENV_VAR1: value1
       ENV_VAR2: value2
     workingdir: /tmp
-    umask: "022"
+    umask: 022

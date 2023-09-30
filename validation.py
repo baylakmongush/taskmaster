@@ -1,5 +1,5 @@
 import sys
-import os
+from umask import validate_umask
 
 # Purpose: Parse config file and validate it
 
@@ -44,25 +44,7 @@ def validate_config(config):
 
         if 'umask' in program_config:
             umask_value = program_config['umask']
-            if isinstance(umask_value, (int, str)):
-                if isinstance(umask_value, str):
-                    try:
-                        umask_value = int(umask_value, 8)
-                    except ValueError:
-                        print(
-                            f"Error: 'umask' value '{umask_value}' is not a valid integer or octal string in the configuration for program '{program_name}'.")
-                        sys.exit(1)
-
-                if 0 <= umask_value <= 777:
-                    pass
-                else:
-                    print(
-                        f"Error: 'umask' value ({umask_value:o}) is not a valid octal value in the configuration for program '{program_name}'.")
-                    sys.exit(1)
-            else:
-                print(
-                    f"Error: 'umask' value '{umask_value}' is not a valid integer or octal string in the configuration for program '{program_name}'.")
-                sys.exit(1)
+            validate_umask(umask_value, program_name)
 
         if not isinstance(program_config['stopsignal'], str):
             print(f"Error: 'stopsignal' must be a string in the configuration for program '{program_name}'.")
