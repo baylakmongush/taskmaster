@@ -1,6 +1,6 @@
 programs:
   sleep:
-    command: sleep 10
+    command: sleep 30
     numprocs: 2
     autostart: true
     autorestart: always
@@ -17,7 +17,7 @@ programs:
     workingdir: /tmp
     umask: "777"
   sleep2:
-    command: sleep 10
+    command: sleep 30
     numprocs: 2
     autostart: true
     autorestart: always
