@@ -1,6 +1,9 @@
-import sys
-from umask import validate_umask
 import os
+import sys
+import signal
+
+from umask import validate_umask
+
 
 # Purpose: Parse config file and validate it
 
@@ -22,7 +25,7 @@ def validate_config(config):
         required_params = ['command', 'numprocs', 'autostart', 'autorestart', 'exitcodes', 'startsecs', 'startretries',
                            'stopsignal', 'stopwaitsecs', 'stdout', 'stderr', 'environment', 'workingdir', 'umask']
         autorestart = ['never', 'always', 'on_failure']
-        stopsignal = ['TERM', 'HUP', 'INT', 'QUIT', 'KILL', 'USR1', 'USR2']
+        stopsignal = [signal.Signals(i).name for i in signal.Signals]
 
         for param in required_params:
             if param not in program_config:
