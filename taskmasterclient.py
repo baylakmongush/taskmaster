@@ -80,19 +80,23 @@ def main():
     config_data = config_parser.get_config_data()
     client.send_config(config_data)
 
-    while True:
-        try:
-            user_input = input("taskmaster> ").strip()
-            if user_input.lower() in ["quit", "exit"]:
+    if args.command:
+        command = " ".join(args.command)
+        client.send_command(command)
+    else:
+        while True:
+            try:
+                user_input = input("taskmaster> ").strip()
+                if user_input.lower() in ["quit", "exit"]:
+                    break
+                if user_input:
+                    client.send_command(user_input)
+            except KeyboardInterrupt:
+                print("Ctrl+C pressed...")
                 break
-            if user_input:
-                client.send_command(user_input)
-        except KeyboardInterrupt:
-            print("Ctrl+C pressed...")
-            break
-        except EOFError:
-            print("Ctrl+D pressed...")
-            break
+            except EOFError:
+                print("Ctrl+D pressed...")
+                break
 
     client.close()
 

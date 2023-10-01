@@ -33,3 +33,14 @@ programs:
       ENV_VAR2: value2
     workingdir: /tmp
     umask: 022
+taskmasterctl:
+  serverurl: unix:///tmp/supervisor.sock
+taskmasterd:
+  logfile: /tmp/taskmasterd.log
+  logfile_maxbytes: 50MB
+  logfile_backups: 10
+  loglevel: info
+  pidfile: /tmp/supervisord.pid
+  nodaemon: false
+
+

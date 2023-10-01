@@ -11,7 +11,6 @@ def serialize_config(config_data):
 
 
 def deserialize_config(config_str):
-    print(config_str)
     try:
         config_data = yaml.safe_load(config_str)
         return config_data
