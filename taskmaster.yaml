@@ -7,7 +7,7 @@ programs:
     exitcodes: [0, 2]
     startsecs: 3
     startretries: 3
-    stopsignal: TERM
+    stopsignal: SIGTERM
     stopwaitsecs: 10
     stdout: ./out.log
     stderr: ./err.log
@@ -24,7 +24,7 @@ programs:
     exitcodes: [ 0, 2 ]
     startsecs: 3
     startretries: 3
-    stopsignal: TERM
+    stopsignal: SIGTERM
     stopwaitsecs: 10
     stdout: ./out.log
     stderr: ./err.log

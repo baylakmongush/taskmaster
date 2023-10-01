@@ -9,7 +9,7 @@ import threading
 import parser
 
 
-class Status(enum.Enum):
+class ProcessInstanceStatus(enum.Enum):
     none = 0
     starting = 1
     running = 2
@@ -21,8 +21,9 @@ class Status(enum.Enum):
 class ProcessStatus(enum.Enum):
     running = 0
     stopping = 1
-    stopped = 2
-    deleted = 3
+    reloading = 2
+    stopped = 3
+    deleted = 4
 
 
 class RestartPolicy(enum.Enum):
@@ -42,7 +43,7 @@ class ProcessInstance:
     process: str
 
     def __init__(self, process: str):
-        self.status = Status.none
+        self.status = ProcessInstanceStatus.none
 
         self.pid = 0
         self.restarts = 0
@@ -169,12 +170,7 @@ class Runner:
                 self._processes[k].status = ProcessStatus.deleted
 
                 for i in self._processes[k].instances:
-                    if i.status == Status.starting or i.status == Status.running:
-                        i.status = Status.stopping if self._processes[name].graceful_period > 0 else i.status
-
-                        i.stopped_at = int(time.time())
-
-                        os.kill(i.pid, self._processes[name].exit_signal)
+                    self._stop_instance(i)
 
             for k in keys_to_add:
                 self._processes[k] = Process(k, config[k]) 
@@ -182,13 +178,14 @@ class Runner:
                 for i in self._processes[k].instances:
                     self._run_instance(i)
 
+
+            unchanged_keys = old_set_of_keys & new_set_of_keys
+
+            for i in unchanged_keys:
+                if self._config[i] != config[i]:
+                    pass
+
             self._config = config
-
-            # unchanged_keys = old_set_of_keys & new_set_of_keys
-
-            # for i in unchanged_keys:
-            #     if self._config[i] != config[i]:
-            #         pass
 
     def pid(self, name: str) -> list:
         """
@@ -220,7 +217,7 @@ class Runner:
         Restarts requested program by stopping it first then running again
         If name is None - restarts all programs
         """
-        pass
+        self.stop(name, True)
 
     def start(self, name: str):
         """
@@ -234,22 +231,17 @@ class Runner:
                 for i in self._processes[name].instances:
                     self._run_instance(i)
 
-    def stop(self, name: str):
+    def stop(self, name: str, reload: bool = False):
         """
         Attempts to stop requested program, if it's not already stopped
         If the name is None - tries to stop ALL the programs
         """
         with self._lock:
             if self._processes[name] is not None and self._processes[name].status == ProcessStatus.running:
-                self._processes[name].status = ProcessStatus.stopping
+                self._processes[name].status = ProcessStatus.stopping if not reload else ProcessStatus.reloading
 
                 for i in self._processes[name].instances:
-                    if i.status == Status.starting or i.status == Status.running:
-                        i.status = Status.stopping if self._processes[name].graceful_period > 0 else i.status
-
-                        i.stopped_at = int(time.time())
-
-                        os.kill(i.pid, self._processes[name].exit_signal)
+                    self._stop_instance(i)
 
     def update(self):
         """
@@ -261,10 +253,10 @@ class Runner:
             for i in self._instances.values():
                 process: Process = self._processes[i.process]
 
-                if i.status == Status.starting and int(time.time()) - i.started_at > process.initial_delay:
-                    i.status = Status.running
+                if i.status == ProcessInstanceStatus.starting and int(time.time()) - i.started_at > process.initial_delay:
+                    i.status = ProcessInstanceStatus.running
 
-                if i.status == Status.stopping and int(time.time()) - i.stopped_at > process.graceful_period:
+                if i.status == ProcessInstanceStatus.stopping and int(time.time()) - i.stopped_at > process.graceful_period:
                     os.kill(i.pid, signal.SIGKILL)
 
             for k, v in self._processes.items():
@@ -296,14 +288,14 @@ class Runner:
                     del self._instances[pid]
 
                     if exit_code in process.normal_exit_codes:
-                        instance.status = Status.stopped
+                        instance.status = ProcessInstanceStatus.stopped
 
                         if process.status == ProcessStatus.running and process.restart_policy == RestartPolicy.always:
                             self._run_instance(instance) if instance.restarts < process.max_restarts else None
                         elif process.status == ProcessStatus.stopping or process.running_processes_counter == 0:
                             process.status = ProcessStatus.stopped
                     else:
-                        instance.status = Status.failed
+                        instance.status = ProcessInstanceStatus.failed
 
                         if process.status == ProcessStatus.running and process.restart_policy == RestartPolicy.on_failure:
                             self._run_instance(instance) if instance.restarts < process.max_restarts else None
@@ -350,7 +342,7 @@ class Runner:
             except (IndexError, FileNotFoundError):
                 pass
         else:
-            instance.status = Status.starting if process.initial_delay > 0 else Status.running
+            instance.status = ProcessInstanceStatus.starting if process.initial_delay > 0 else ProcessInstanceStatus.running
             instance.pid = pid
             instance.restarts += 1
             instance.started_at = int(time.time())
@@ -358,6 +350,16 @@ class Runner:
             process.running_processes_counter += 1
 
             self._instances[pid] = instance;
+
+    def _stop_instance(self, instance: ProcessInstance):
+        if instance.status == ProcessInstanceStatus.starting or instance.status == ProcessInstanceStatus.running:
+            process = self._processes[instance.process]
+
+            instance.status = ProcessInstanceStatus.stopping if process.graceful_period > 0 else instance.status
+            instance.restarts = 0
+            instance.stopped_at = int(time.time())
+
+            os.kill(instance.pid, process.exit_signal)
 
 
 if __name__ == "__main__":
