@@ -3,6 +3,7 @@ import sys
 import time
 import enum
 import signal
+import logging
 import tempfile
 import threading
 
@@ -10,7 +11,7 @@ import parser
 
 
 class ProcessInstanceStatus(enum.Enum):
-    none = 0
+    created = 0
     starting = 1
     running = 2
     stopping = 3
@@ -19,11 +20,12 @@ class ProcessInstanceStatus(enum.Enum):
 
 
 class ProcessStatus(enum.Enum):
-    running = 0
-    stopping = 1
-    reloading = 2
-    stopped = 3
-    deleted = 4
+    created = 0
+    running = 1
+    stopping = 2
+    reloading = 3
+    stopped = 4
+    deleted = 5
 
 
 class RestartPolicy(enum.Enum):
@@ -33,23 +35,18 @@ class RestartPolicy(enum.Enum):
 
 
 class ProcessInstance:
-    status: Status
+    status: ProcessInstanceStatus
 
     pid: int
     restarts: int
-    started_at: int
-    stopped_at: int
 
     process: str
 
     def __init__(self, process: str):
-        self.status = ProcessInstanceStatus.none
+        self.status = ProcessInstanceStatus.created
 
         self.pid = 0
         self.restarts = 0
-
-        self.started_at = 0
-        self.started_at = 0
 
         self.process = process;
 
@@ -84,7 +81,7 @@ class Process:
     instances: list
 
     def __init__(self, name:str, config: dict):
-        self.status = ProcessStatus.running
+        self.status = ProcessStatus.created
         
         self.running_processes_counter = 0
 
@@ -142,12 +139,14 @@ class Runner:
     _instances: dict # Singular instance of a program
     _config: dict # Current configuration on which the runner relies as source of truth
     _lock: threading.Lock
+    _logger: logging.Logger
 
-    def __init__(self):
+    def __init__(self, logger: logging.Logger):
         self._processes = dict()
         self._instances = dict()
         self._config = dict()
         self._lock = threading.Lock()
+        self._logger = logger
 
         signal.signal(signal.SIGCHLD, lambda s, f: self._children_signal_handler(s ,f))
 
@@ -175,22 +174,23 @@ class Runner:
             for k in keys_to_add:
                 self._processes[k] = Process(k, config[k]) 
 
+                self._processes[k].status = ProcessStatus.running
+
                 for i in self._processes[k].instances:
                     self._run_instance(i)
 
+            # unchanged_keys = old_set_of_keys & new_set_of_keys
 
-            unchanged_keys = old_set_of_keys & new_set_of_keys
-
-            for i in unchanged_keys:
-                if self._config[i] != config[i]:
-                    pass
+            # for i in unchanged_keys:
+            #     if self._config[i] != config[i]:
+            #         pass
 
             self._config = config
 
     def pid(self, name: str) -> list:
         """
         Returns pid of requested program
-        If not name is provided - returns runner pid
+        If no name is provided - returns runner pid
         If no such program exist in runner state - returns None
         """
         with self._lock:
@@ -205,63 +205,95 @@ class Runner:
     def status(self, name: str) -> dict:
         """
         Returns current status of the program
-        The returned dict contains the process and its instances
+        If name is None - returns status of all the programs
+        If no such program exist in runner state - returns None
+        See Process class to interpret the status
         """
-        if self._processes.get(name) is not None:
-            return self._processes[name]
+        with self._lock:
+            if name == None:
+                return self._processes
 
-        return None
+            if name not in self._processes:
+                return None
+
+            return self._processes[name]
 
     def restart(self, name: str):
         """
         Restarts requested program by stopping it first then running again
         If name is None - restarts all programs
         """
-        self.stop(name, True)
+        with self._lock:
+            if name == None:
+                return False
 
-    def start(self, name: str):
+            if name not in self._processes:
+                return False
+
+            process: Process = self._processes[name]
+
+            if process.status == ProcessStatus.running:
+                process.status = ProcessStatus.reloading
+
+                for i in self._processes[name].instances:
+                    self._stop_instance(i)
+            elif process.status == ProcessStatus.stopped:
+                process.status = ProcessStatus.running
+
+                for i in self._processes[name].instances:
+                    self._run_instance(i)
+            else:
+                return False
+
+            return True
+
+    def start(self, name: str) -> bool:
         """
         Attempts to start requested program if it's not already running
         If name is None - starts all processes that are not running already
         """
         with self._lock:
-            if self._processes[name] is not None and self._processes[name].status == ProcessStatus.stopped:
-                self._processes[name].status = ProcessStatus.running
+            if name == None:
+                return False
 
-                for i in self._processes[name].instances:
-                    self._run_instance(i)
+            if name not in self._processes:
+                return False
 
-    def stop(self, name: str, reload: bool = False):
+            process: Process = self._processes[name]
+
+            if process.status != ProcessStatus.stopped:
+                return False
+
+            process.status = ProcessStatus.running
+
+            for i in self._processes[name].instances:
+                self._run_instance(i)
+
+            return True
+
+    def stop(self, name: str) -> bool:
         """
         Attempts to stop requested program, if it's not already stopped
         If the name is None - tries to stop ALL the programs
         """
         with self._lock:
-            if self._processes[name] is not None and self._processes[name].status == ProcessStatus.running:
-                self._processes[name].status = ProcessStatus.stopping if not reload else ProcessStatus.reloading
+            if name == None:
+                return False
 
-                for i in self._processes[name].instances:
-                    self._stop_instance(i)
+            if name not in self._processes:
+                return False
 
-    def update(self):
-        """
-        This method is intended to be called outside of runner
-        The purpose of this method is to track timing events such start/stop delays
-        To save CPU cycles - best to call it once per sec using time.sleep
-        """
-        with self._lock:
-            for i in self._instances.values():
-                process: Process = self._processes[i.process]
+            process: Process = self._processes[name]
 
-                if i.status == ProcessInstanceStatus.starting and int(time.time()) - i.started_at > process.initial_delay:
-                    i.status = ProcessInstanceStatus.running
+            if process.status != ProcessStatus.running:
+                return False
 
-                if i.status == ProcessInstanceStatus.stopping and int(time.time()) - i.stopped_at > process.graceful_period:
-                    os.kill(i.pid, signal.SIGKILL)
+            process.status = ProcessStatus.stopping
 
-            for k, v in self._processes.items():
-                if v.status == ProcessStatus.deleted and v.running_processes_counter == 0:
-                    del self._processes[k]
+            for i in self._processes[name].instances:
+                self._stop_instance(i)
+
+            return True
 
     def _children_signal_handler(self, signum, frame):
         """
@@ -292,14 +324,23 @@ class Runner:
 
                         if process.status == ProcessStatus.running and process.restart_policy == RestartPolicy.always:
                             self._run_instance(instance) if instance.restarts < process.max_restarts else None
-                        elif process.status == ProcessStatus.stopping or process.running_processes_counter == 0:
+                        elif process.status == ProcessStatus.stopping and process.running_processes_counter == 0:
                             process.status = ProcessStatus.stopped
                     else:
                         instance.status = ProcessInstanceStatus.failed
 
                         if process.status == ProcessStatus.running and process.restart_policy == RestartPolicy.on_failure:
                             self._run_instance(instance) if instance.restarts < process.max_restarts else None
-                        elif process.status == ProcessStatus.stopping or process.running_processes_counter == 0:
+                        elif process.status == ProcessStatus.stopping and process.running_processes_counter == 0:
+                            process.status = ProcessStatus.stopped
+
+                    if process.running_processes_counter == 0:
+                        if process.status == ProcessStatus.reloading:
+                            process.status = ProcessStatus.running
+
+                            for i in process.instances:
+                                self._run_instance(i) 
+                        else:
                             process.status = ProcessStatus.stopped
 
                     pid, exit_code = os.waitpid(-1, os.WNOHANG)
@@ -343,43 +384,60 @@ class Runner:
                 pass
         else:
             instance.status = ProcessInstanceStatus.starting if process.initial_delay > 0 else ProcessInstanceStatus.running
+
             instance.pid = pid
             instance.restarts += 1
-            instance.started_at = int(time.time())
 
             process.running_processes_counter += 1
 
             self._instances[pid] = instance;
 
+            threading.Timer(process.initial_delay, lambda: self._initial_delay_handler(instance)).start()
+
     def _stop_instance(self, instance: ProcessInstance):
         if instance.status == ProcessInstanceStatus.starting or instance.status == ProcessInstanceStatus.running:
-            process = self._processes[instance.process]
+            process: Process = self._processes[instance.process]
 
             instance.status = ProcessInstanceStatus.stopping if process.graceful_period > 0 else instance.status
+
             instance.restarts = 0
-            instance.stopped_at = int(time.time())
 
             os.kill(instance.pid, process.exit_signal)
+
+            threading.Timer(process.graceful_period, lambda: self._graceful_shutdown_handler(instance)).start()
+
+    def _initial_delay_handler(self, instance: ProcessInstance):
+        with self._lock:
+            if instance.status == ProcessInstanceStatus.starting:
+                instance.status = ProcessInstanceStatus.running
+
+    def _graceful_shutdown_handler(self, instance: ProcessInstance):
+        with self._lock:
+            if instance.status == ProcessInstanceStatus.stopping:
+                os.kill(i.pid, signal.SIGKILL)
 
 
 if __name__ == "__main__":
     prs = parser.create_parser()
 
-    runner = Runner()
+    runner = Runner(None)
+
+    config = prs.parse()["programs"]
+
+    runner.reload(config)
 
     while True:
         command = input("Command: ")
 
-        config = prs.parse()["programs"]
-
-        runner.reload(config)
-
-        runner.update()
-
         if int(command.split()[0]) == 1:
-            runner.stop(command.split()[1])
+            if not runner.stop(command.split()[1]):
+                print("Error")
         elif int(command.split()[0]) == 2:
-            runner.start(command.split()[1])
+            if not runner.start(command.split()[1]):
+                print("Error")
+        elif int(command.split()[0]) == 3:
+            if not runner.restart(command.split()[1]):
+                print("Error")
 
 # def move_cursor_up_and_clear(n=1):
 #     for _ in range(n):

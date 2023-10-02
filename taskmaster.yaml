@@ -32,7 +32,7 @@ programs:
       ENV_VAR1: value1
       ENV_VAR2: value2
     workingdir: /tmp
-    umask: 022
+    umask: "777"
 taskmasterctl:
   serverurl: unix:///tmp/supervisor.sock
 taskmasterd:
