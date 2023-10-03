@@ -1,6 +1,11 @@
+from runner import Runner
+import parser
+
+
 class CommandHandler:
 
-    def __init__(self):
+    def __init__(self, runner):
+        self.runner = runner
         self.available_commands = [
             "add", "exit", "open", "reload", "restart",
             "start", "tail", "avail", "fg", "pid",
@@ -20,55 +25,61 @@ class CommandHandler:
             "version": "version\t\tShow the version of the remote taskmasterd process"
         }
         self.program_status = {}
+        self.runner = Runner(None)
 
-    def start_task(self, client_socket, task_name):
+    def start_task(self, client_socket, task_name, logging):
         # Здесь код для запуска задачи.
-        self.update_program_status(task_name, "STARTED")
+        self.update_program_status(task_name, "STARTED", logging)
         response = f"{task_name}: started\n"
         client_socket.send(response.encode())
 
-    def stop_task(self, client_socket, task_name):
+    def stop_task(self, client_socket, task_name, logging):
         # Здесь код для остановки задачи.
-        self.update_program_status(task_name, "STOPPED")
+        self.update_program_status(task_name, "STOPPED", logging)
         response = f"{task_name}: stopped\n"
         client_socket.send(response.encode())
 
-    def get_all_program_status(self):
+    def get_all_program_status(self, client_socket, logging):
         status_info = "\n".join([f"{name}\t{status}" for name, status in self.program_status.items()])
         return status_info
 
-    def get_status_task(self, client_socket, task_name):
+    def get_status_task(self, client_socket, task_name, logging):
         # Здесь код для проверки статуса задачи.
-        status_info = task_name #self.check_task_status(task_name) # информация о статусе
+        status_info = task_name  # self.check_task_status(task_name) # информация о статусе
+        prs = parser.create_parser()
+        config = prs.parse()["programs"]
+        self.runner.reload(config)
 
         if status_info is not None:
-            response = f"{task_name} {status_info}\n"
+            response = self.runner.status(status_info)
+            status_string = str(response)
+
         else:
-            response = f"{task_name} UNKNOWN\n"
+            status_string = f"{task_name} UNKNOWN\n"
 
-        client_socket.send(response.encode())
+        client_socket.send(status_string.encode())
 
-    def reread(self, client_socket):
+    def reread(self, client_socket, logging):
         # Здесь код для выполнения команды reread.
         response = "Executing the reread command\n"
         client_socket.send(response.encode())
 
-    def reload_task(self, client_socket, task_name):
+    def reload_task(self, client_socket, task_name, logging):
         # Здесь код для перезапуска задачи.
         response = f"Reloading task: {task_name}\n"
         client_socket.send(response.encode())
 
-    def update_config(self, config_data, client_socket):
+    def update_config(self, config_data, client_socket, logging):
         response = "Updated server configuration\n"
         client_socket.send(response.encode())
 
-    def send_help_info(self, client_socket):
+    def send_help_info(self, client_socket, logging):
         help_info = "default commands (type help <topic>):\n"
         help_info += "=====================================\n"
         help_info += " ".join(self.available_commands) + "\n"
         client_socket.send(help_info.encode())
 
-    def send_command_help(self, client_socket, command):
+    def send_command_help(self, client_socket, command, logging):
         if command in self.command_help:
             help_info = f"{command}: {self.command_help[command]}\n"
             client_socket.send(help_info.encode())
@@ -76,5 +87,5 @@ class CommandHandler:
             response = f"Help information not available for command: {command}\n"
             client_socket.send(response.encode())
 
-    def update_program_status(self, program_name, status):
+    def update_program_status(self, program_name, status, logging):
         self.program_status[program_name] = status
