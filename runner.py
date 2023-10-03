@@ -89,8 +89,6 @@ class Process:
 
         self.load_config(config)
 
-        self.instances = [ProcessInstance(self.name) for i in range(self.numprocs)]
-
     def load_config(self, config):
         self.autostart = config.get("autostart", False)
 
@@ -119,6 +117,8 @@ class Process:
             self.normal_exit_codes = [0]
 
         self.env = config.get("environment", dict())
+
+        self.instances = [ProcessInstance(self.name) for i in range(self.numprocs)]
 
     def _restart_policy_from_string(self, string):
         for i in RestartPolicy:
@@ -166,6 +166,8 @@ class Runner:
             keys_to_add = new_set_of_keys - old_set_of_keys
 
             for k in keys_to_delete:
+                print("Deleting", k)
+
                 self._processes[k].status = ProcessStatus.deleted
 
                 for i in self._processes[k].instances:
@@ -179,11 +181,14 @@ class Runner:
                 for i in self._processes[k].instances:
                     self._run_instance(i)
 
-            # unchanged_keys = old_set_of_keys & new_set_of_keys
+            unchanged_keys = old_set_of_keys & new_set_of_keys
 
-            # for i in unchanged_keys:
-            #     if self._config[i] != config[i]:
-            #         pass
+            for i in unchanged_keys:
+                if self._config[i] != config[i]:
+                    self._processes[i].status = ProcessStatus.reloading
+
+                    for j in self._processes[i].instances:
+                        self._stop_instance(j)
 
             self._config = config
 
@@ -338,8 +343,12 @@ class Runner:
                         if process.status == ProcessStatus.reloading:
                             process.status = ProcessStatus.running
 
+                            process.load_config(self._config[process.name])
+
                             for i in process.instances:
                                 self._run_instance(i) 
+                        elif process.status == ProcessStatus.deleted:
+                            del self._processes[instance.process]
                         else:
                             process.status = ProcessStatus.stopped
 
@@ -422,12 +431,12 @@ if __name__ == "__main__":
 
     runner = Runner(None)
 
-    config = prs.parse()["programs"]
-
-    runner.reload(config)
-
     while True:
         command = input("Command: ")
+
+        config = prs.parse()["programs"]
+
+        runner.reload(config)
 
         if int(command.split()[0]) == 1:
             if not runner.stop(command.split()[1]):
