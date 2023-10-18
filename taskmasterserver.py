@@ -65,8 +65,7 @@ class TaskMasterCtlServer:
                     task_name = " ".join(args)
                     command_handler.get_status_task(client_socket, task_name, logging)
                 else:
-                    status_info = command_handler.get_all_program_status()
-                    client_socket.send(status_info.encode())
+                    command_handler.get_status_task(client_socket, None, logging)
             elif action == "restart":
                 if args:
                     task_name = " ".join(args)

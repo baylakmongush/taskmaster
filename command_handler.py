@@ -56,20 +56,12 @@ class CommandHandler:
             response = f"{task_name} UNKNOWN\n"
         client_socket.send(response.encode())
 
-    def get_all_program_status(self, client_socket, logging):
-        status_info = "\n".join([f"{name}\t{status}" for name, status in self.program_status.items()])
-        return status_info
-
     def get_status_task(self, client_socket, task_name, logging):
         # Здесь код для проверки статуса задачи.
         status_info = task_name  # self.check_task_status(task_name) # информация о статусе
 
-        if status_info is not None:
-            response = self.runner.status(status_info)
-            status_string = str(response)
-
-        else:
-            status_string = f"{task_name} UNKNOWN\n"
+        response = self.runner.status(status_info)
+        status_string = str(response)
 
         client_socket.send(status_string.encode())
 
