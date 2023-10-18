@@ -4,6 +4,7 @@ from serialization import deserialize_config
 from command_handler import CommandHandler
 import logging
 from runner import Runner
+import parser
 
 
 # Запустите этот серверный код следующим образом:
@@ -20,11 +21,11 @@ logging.basicConfig(
 
 
 class TaskMasterCtlServer:
-    def __init__(self, socket_path):
+    def __init__(self, socket_path, runner):
         self.socket_path = socket_path
         self.server_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.should_exit = False
-        self.runner = Runner(None)
+        self.runner = runner
 
     def start(self):
         if os.path.exists(self.socket_path):
@@ -34,7 +35,7 @@ class TaskMasterCtlServer:
         logging.info(f"Server listen to socket: {self.socket_path}")
 
     def handle_client(self, client_socket, logging):
-        command_handler = CommandHandler(self.runner)
+        command_handler = CommandHandler(logging, self.runner)
         while True:
             command = client_socket.recv(1024).decode()
             if not command:
@@ -66,14 +67,12 @@ class TaskMasterCtlServer:
                 else:
                     status_info = command_handler.get_all_program_status()
                     client_socket.send(status_info.encode())
-            elif action == "reread":
-                command_handler.reread(client_socket, logging)
-            elif action == "reload":
+            elif action == "restart":
                 if args:
                     task_name = " ".join(args)
-                    command_handler.reload_task(client_socket, task_name, logging)
+                    command_handler.restart_task(client_socket, task_name, logging)
                 else:
-                    command_handler.send_command_help(client_socket, "reload", logging)
+                    command_handler.send_command_help(client_socket, "restart", logging)
             elif action == "quit":
                 break
             elif action == "exit":
@@ -118,6 +117,10 @@ class TaskMasterCtlServer:
 
 
 if __name__ == "__main__":
+    runner = Runner(None)
+    prs = parser.create_parser()
+    config = prs.parse()["programs"]
+    runner.reload(config)
     socket_path = "./taskmaster_socket"  # Путь к UNIX domain socket
-    server = TaskMasterCtlServer(socket_path)
+    server = TaskMasterCtlServer(socket_path, runner)
     server.run()

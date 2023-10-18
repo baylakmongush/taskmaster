@@ -74,8 +74,6 @@ def main():
 
     if config_path is not None:
         config_parser.parse_from_file(config_path)
-    else:
-        config_parser.parse_from_default_paths()
 
     config_data = config_parser.get_config_data()
     client.send_config(config_data)
