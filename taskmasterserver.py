@@ -73,6 +73,12 @@ class TaskMasterCtlServer:
                     command_handler.restart_task(client_socket, task_name, logging)
                 else:
                     command_handler.send_command_help(client_socket, "restart", logging)
+            elif action == "pid":
+                if args:
+                    task_name = " ".join(args)
+                    command_handler.get_pid(client_socket, task_name, logging)
+                else:
+                    command_handler.send_command_help(client_socket, "pid", logging)
             elif action == "quit":
                 break
             elif action == "exit":

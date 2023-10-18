@@ -40,6 +40,22 @@ class CommandHandler:
             response = f"{task_name}: not stopped\n"
         client_socket.send(response.encode())
 
+    def restart_task(self, client_socket, task_name, logging):
+        result = self.runner.restart(task_name)
+        if result:
+            response = f"{task_name}: restarted\n"
+        else:
+            response = f"{task_name}: not restarted\n"
+        client_socket.send(response.encode())
+
+    def get_pid(self, client_socket, task_name, logging):
+        result = self.runner.pid(task_name)
+        if result:
+            response = str(result) + "\n"
+        else:
+            response = f"{task_name} UNKNOWN\n"
+        client_socket.send(response.encode())
+
     def get_all_program_status(self, client_socket, logging):
         status_info = "\n".join([f"{name}\t{status}" for name, status in self.program_status.items()])
         return status_info
@@ -56,14 +72,6 @@ class CommandHandler:
             status_string = f"{task_name} UNKNOWN\n"
 
         client_socket.send(status_string.encode())
-
-    def restart_task(self, client_socket, task_name, logging):
-        result = self.runner.restart(task_name)
-        if result:
-            response = f"{task_name}: restarted\n"
-        else:
-            response = f"{task_name}: not restarted\n"
-        client_socket.send(response.encode())
 
     def update_config(self, config_data, client_socket, logging):
         response = "Updated server configuration\n"
