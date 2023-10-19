@@ -10,6 +10,7 @@ import threading
 import parser
 
 
+
 class ProcessInstanceStatus(enum.Enum):
     created = 0
     starting = 1
@@ -148,7 +149,7 @@ class Runner:
         self._lock = threading.Lock()
         self._logger = logger
 
-        signal.signal(signal.SIGCHLD, lambda s, f: self._children_signal_handler(s ,f))
+        self._setup_signal_handlers()
 
     # Will trigger config reload, checking new/old/changed programs and act accordingly
     def reload(self, config: dict):
@@ -158,6 +159,8 @@ class Runner:
         New programs will be added as usual
         Changed programs will be stopped and then started again with new configuration
         """
+        self._logger.info("Loading configuration file...")
+
         with self._lock:
             old_set_of_keys = set(self._config.keys())
             new_set_of_keys = set(config.keys())
@@ -190,67 +193,7 @@ class Runner:
                     for j in self._processes[i].instances:
                         self._stop_instance(j)
 
-            self._config = config
-
-    def pid(self, name: str) -> list:
-        """
-        Returns pid of requested program
-        If no name is provided - returns runner pid
-        If no such program exist in runner state - returns None
-        """
-        with self._lock:
-            if name == None:
-                return [os.getpid()]
-
-            if name not in self._processes:
-                return None
-
-            return [i.pid for i in self._processes[name].instances]
-
-    def status(self, name: str) -> dict:
-        """
-        Returns current status of the program
-        If name is None - returns status of all the programs
-        If no such program exist in runner state - returns None
-        See Process class to interpret the status
-        """
-        with self._lock:
-            if name == None:
-                return self._processes
-
-            if name not in self._processes:
-                return None
-
-            return self._processes[name]
-
-    def restart(self, name: str):
-        """
-        Restarts requested program by stopping it first then running again
-        If name is None - restarts all programs
-        """
-        with self._lock:
-            if name == None:
-                return False
-
-            if name not in self._processes:
-                return False
-
-            process: Process = self._processes[name]
-
-            if process.status == ProcessStatus.running:
-                process.status = ProcessStatus.reloading
-
-                for i in self._processes[name].instances:
-                    self._stop_instance(i)
-            elif process.status == ProcessStatus.stopped:
-                process.status = ProcessStatus.running
-
-                for i in self._processes[name].instances:
-                    self._run_instance(i)
-            else:
-                return False
-
-            return True
+            self._config = config  
 
     def start(self, name: str) -> bool:
         """
@@ -299,6 +242,70 @@ class Runner:
                 self._stop_instance(i)
 
             return True
+
+    def restart(self, name: str):
+        """
+        Restarts requested program by stopping it first then running again
+        If name is None - restarts all programs
+        """
+        with self._lock:
+            if name == None:
+                return False
+
+            if name not in self._processes:
+                return False
+
+            process: Process = self._processes[name]
+
+            if process.status == ProcessStatus.running:
+                process.status = ProcessStatus.reloading
+
+                for i in self._processes[name].instances:
+                    self._stop_instance(i)
+            elif process.status == ProcessStatus.stopped:
+                process.status = ProcessStatus.running
+
+                for i in self._processes[name].instances:
+                    self._run_instance(i)
+            else:
+                return False
+
+            return True
+
+    def status(self, name: str) -> dict:
+        """
+        Returns current status of the program
+        If name is None - returns status of all the programs
+        If no such program exist in runner state - returns None
+        See Process class to interpret the status
+        """
+        with self._lock:
+            if name == None:
+                return self._processes
+
+            if name not in self._processes:
+                return None
+
+            return self._processes[name]
+
+    def pid(self, name: str) -> list:
+        """
+        Returns pid of requested program
+        If no name is provided - returns runner pid
+        If no such program exist in runner state - returns None
+        """
+        with self._lock:
+            if name == None:
+                return [os.getpid()]
+
+            if name not in self._processes:
+                return None
+
+            return [i.pid for i in self._processes[name].instances]
+
+    def _setup_signal_handlers(self):
+        signal.signal(signal.SIGCHLD, lambda s, f: self._children_signal_handler(s ,f))
+        #signal.signal(signal.SIGHUP, lambda s, f: self._
 
     def _children_signal_handler(self, signum, frame):
         """
@@ -426,10 +433,31 @@ class Runner:
                 os.kill(i.pid, signal.SIGKILL)
 
 
+def setup_logger():
+    # Define the logging format
+    log_format = "%(asctime)s [%(levelname)s] - %(message)s"
+    date_format = "%Y-%m-%d %H:%M:%S"
+    
+    # Create a logger object
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)  # Set the logging level to DEBUG
+
+    # Console Handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.DEBUG)  # Log everything to the console
+    console_formatter = logging.Formatter(log_format, datefmt=date_format)
+    console_handler.setFormatter(console_formatter)
+    logger.addHandler(console_handler)
+    
+    return logger
+
+
 if __name__ == "__main__":
     prs = parser.create_parser()
 
-    runner = Runner(None)
+    logger = setup_logger()
+
+    runner = Runner(logger)
 
     while True:
         command = input("Command: ")
@@ -452,3 +480,253 @@ if __name__ == "__main__":
 #     for _ in range(n):
 #         print("\033[K", end='')
 #         print(f"\033[1A", end='')
+                
+# import os
+# import sys
+# import enum
+# import signal
+# import tempfile
+# import threading
+# import logging
+# 
+# from typing import List, Dict, Any
+# 
+# 
+# class Autorestart(enum.Enum):
+#     true = 0,
+#     unexpected = 1,
+#     false = 2,
+# 
+# 
+# class ProcessState(enum.Enum):
+#     stopped = 0, # The process has been stopped due to a stop request or has never been started
+#     starting = 1, # The process is starting due to a start request
+#     running = 2, # The process is running
+#     backoff = 3, # The process entered the starting state but subsequently exited too quickly (before the time defined in startsecs) to move to the running state
+#     stopping = 4, # The process is stopping due to a stop request
+#     exited = 5, # The process exited from the RUNNING state (expectedly or unexpectedly)
+#     fatal = 6, # The process could not be started successfully
+#     unknown = 7 # The process is in an unknown state
+# 
+# 
+# class Program:
+#     stdout_logfile: str
+#     stderr_logfile: str
+#     startretries: int
+#     stopwaitsecs: int
+#     environment: Dict[str, str]
+#     autorestart: Autorestart
+#     stopsignal: signal.Signals
+#     exitcodes: List[int]
+#     autostart: bool
+#     directory: str
+#     startsecs: int
+#     numprocs: int
+#     command: List[str]
+#     umask: int
+# 
+#     def __init__(self, name: str, config: Dict[str, Any]):
+#         self.stdout_logfile = config.get("stdout", "AUTO") # Either AUTO, NONE or str
+#         self.stderr_logfile = config.get("stderr", "AUTO") # Either AUTO, NONE or str
+#         self.startretries = config.get("startretries", 3)
+#         self.stopwaitsecs = config.get("stopwaitsecs", 10)
+#         self.environment = config.get("environment", dict())
+#         self.autorestart = config.get("autorestart", Autorestart.unexpected)
+#         self.stopsignal = config.get("stopsignal", signal.Signals.SIGTERM)
+#         self.exitcodes = config.get("exitcodes", [0])
+#         self.autostart = config.get("autostart", True)
+#         self.directory = config.get("directory", None) # None - do not chdir
+#         self.startsecs = config.get("startsecs", 1)
+#         self.numprocs = config.get("numprocs", 1)
+#         self.command = config.get("command", None) # Must be filled - error will be thrown otherwise
+#         self.umask = config.get("umask", None) # None - do not set umask
+# 
+#     def __str__(self):
+#         return ", ".join("%s: %s" % i for i in vars(self).items())
+# 
+# 
+# class Process:
+#     restarts: int
+#     group: Group
+#     state: ProcessState
+#     lock: threading.Lock
+#     name: str
+#     pid: int
+# 
+#     def __init__(self, group: Group, name: str, state: ProcessState, pid: int):
+#         self.group = group
+#         self.state = state
+#         self.lock = threading.Lock()
+#         self.name = name
+#         self.pid = pid
+# 
+#     def __str__(self):
+#         return ", ".join("%s: %s" % i for i in vars(self).items())
+# 
+# 
+# class Group:
+#     stdout_logfile: str
+#     stderr_logfile: str
+#     startretries: int
+#     stopwaitsecs: int
+#     environment: Dict[str, str]
+#     autorestart: Autorestart
+#     stopsignal: signal.Signals
+#     exitcodes: List[int]
+#     autostart: bool
+#     directory: str
+#     startsecs: int
+#     numprocs: int
+#     command: List[str]
+#     umask: int
+#     name: str
+# 
+#     processes: List[Process]
+# 
+#     def __init__(self, name: str, config: Dict[str, Any]):
+#         self.stdout_logfile = config.get("stdout", "AUTO") # Either AUTO, NONE or str
+#         self.stderr_logfile = config.get("stderr", "AUTO") # Either AUTO, NONE or str
+#         self.startretries = config.get("startretries", 3)
+#         self.stopwaitsecs = config.get("stopwaitsecs", 10)
+#         self.environment = config.get("environment", dict())
+#         self.autorestart = config.get("autorestart", Autorestart.unexpected)
+#         self.stopsignal = config.get("stopsignal", signal.Signals.SIGTERM)
+#         self.exitcodes = config.get("exitcodes", [0])
+#         self.autostart = config.get("autostart", True)
+#         self.directory = config.get("directory", None) # None - do not chdir
+#         self.startsecs = config.get("startsecs", 1)
+#         self.numprocs = config.get("numprocs", 1)
+#         self.command = config.get("command", None) # Must be filled - error will be thrown otherwise
+#         self.umask = config.get("umask", None) # None - do not set umask
+#         self.name = name
+# 
+#         self.processes = [Process()]
+# 
+#     def __str__(self):
+#         return "\n".join("%s: %s" % (k, str([str(i) for i in v]) if isinstance(v, list) else v) for (k, v) in vars(self).items())
+# 
+# 
+# class Supervisor:
+#     _processes: Dict[str, Process]
+#     _groups: Dict[str, Group]
+#     _config: Dict[str, Any]
+#     _logger: logging.Logger
+# 
+#     _pid_to_process: Dict[int, Process]
+#     _pid_to_group: Dict[int, Group]
+# 
+#     def __init__(self, logger: logging.Logger):
+#         self._processes = list()
+#         self._groups = dict()
+#         self._config = dict()
+#         self._logger = logger
+#     
+#     def reload_config(self, config: Dict[str, Any]):
+#         self._logger.info("Updating runner configuration...")
+# 
+#         removed_groups = set(self._config.keys()) - set(config.keys())
+#         remain_groups = set(self._config.keys()) & set(config.keys())
+#         added_groups = set(config.keys()) - set(self._config.keys())
+# 
+#         for group in removed_groups:
+#             self._logger.info(f"Group {group} has been removed")
+# 
+#         for group in remain_groups:
+#             if self._config[group] != config[group]:
+#                 self._logger.info(f"Group {group} has been changed")
+# 
+#         for group in added_groups:
+#             self._logger.info(f"Group {group} has been added")
+# 
+#             self._groups[group] = Group(group, config[group])
+# 
+#             if not self._groups[group].autostart:
+#                 continue
+# 
+#             for i in range(self._groups[group].numprocs):
+#                 self._spawn_process(group, f"{group}{i}")
+# 
+#     def start(self, name: str):
+#         pass
+# 
+#     def stop(self, name: str):
+#         pass
+# 
+#     def status(self, name: str):
+#         pass
+# 
+#     def restart(self, name: str):
+#         pass
+# 
+#     def _sigchld_handler(self):
+#         def _handler():
+#             pass
+# 
+#         threading.Thread(target=_handler).start()
+# 
+#     def _spawn_process(self, group: Group, name: str) -> Process:
+#         pid = os.fork()
+# 
+#         if pid == 0:
+#             _redirect_fd_into_logfile(group, sys.stdout.fileno(), group.stdout_logfile, name, ".stdout")
+#             _redirect_fd_into_logfile(group, sys.stderr.fileno(), group.stderr_logfile, name, ".stderr")
+# 
+#             try:
+#                 os.chdir(group.directory)
+#             except Exception:
+#                 pass
+# 
+#             try:
+#                 os.umask(group.umask)
+#             except Exception:
+#                 pass
+# 
+#             signal.signal(group.stopsignal, lambda s, f: sys.exit(group.exitcodes[0]))
+# 
+#             os.execvpe(group.command[0], group.command, group.environment)
+#         else:
+#             self._logger.info(f"spawned: '{process.name}' with pid {pid}")
+# 
+#             self._processes[pid] = Process(group, name, ProcessState.starting if group.startsecs > 0 else ProcessState.running, pid)
+# 
+#             if group.startsecs > 0:
+#                 threading.Timer(group.startsecs, lambda: self._initial_delay_handler(process)).start()
+# 
+#             return self._processes[pid]
+# 
+#     def _stop_process(self, process: Process):
+#         process.state = ProcessState.stopping if process.group.stopwaitsecs > 0 else ProcessState.stopped
+# 
+#         self._kill_process(process, process.group.stopsignal)
+# 
+#         if process.group.stopwaitsecs > 0:
+#             threading.Timer(process.group.stopwaitsecs, lambda: self._graceful_shutdown_handler(process))
+# 
+#     def _redirect_fd_into_logfile(self, group: Group, fd: int, logfile: str, prefix: str = "", suffix: str = ""):
+#         file = None
+# 
+#         if logfile == "AUTO":
+#             file = tempfile.NamedTemporaryFile(mode="w", prefix=prefix, suffix=suffix, delete=False)
+#         else if logfile == "NONE":
+#             file = open("/dev/null", "w")
+#         else:
+#             try:
+#                 file = open(logfile, "w")
+#             except FileNotFoundError:
+#                 file = open("/dev/null", "w")
+#         
+#         os.dup2(file.fileno(), fd)
+# 
+#     def _initial_delay_handler(self, process: Process):
+#         if process.state == ProcessState.starting:
+#             process.state = ProcessState.running
+# 
+#     def _graceful_shutdown_handler(self, process: Process):
+#         if process.state == ProcessState.stopping:
+#             self._kill_process(process, signal.Signals.SIGKILL)
+# 
+#     def _kill_process(self, process: Process, signal: signal.Signals):
+#         try:
+#             os.kill(process.pid, signal)
+#         except Exception:
+#             pass
