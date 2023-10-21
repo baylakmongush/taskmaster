@@ -44,11 +44,11 @@ class Process:
         self._on_kill = None
         self._program = program
         self._state = ProcessState.stopped
-        self._lock = threading.Lock
+        self._lock = threading.Lock()
         self._name = name
         self._pid = 0
 
-    def spawn(self, on_spawn: Callable[int] = None) -> bool:
+    def spawn(self, on_spawn: Callable[[int], int] = None) -> bool:
         """
         This method will ALWAYS spawn new process, rewriting the state, 
             so be careful with it and make sure to check the state before spawning
@@ -57,7 +57,6 @@ class Process:
         """
         self._start_timer = threading.Timer(self._program.startsecs, self._start_handler)
         self._on_spawn = on_spawn if on_spawn is not None else self._on_spawn
-        self._restarts = 0
         self._state = ProcessState.starting if self._program.startsecs > 0 else ProcessState.running
 
         try:
@@ -66,8 +65,8 @@ class Process:
             return False
 
         if self._pid == 0:
-            _redirect_fd_into_logfile(sys.stdout.fileno(), self._program.stdout_logfile, ".stdout")
-            _redirect_fd_into_logfile(sys.stderr.fileno(), self._program.stderr_logfile, ".stderr")
+            self._redirect_fd_into_logfile(sys.stdout.fileno(), self._program.stdout_logfile, ".stdout")
+            self._redirect_fd_into_logfile(sys.stderr.fileno(), self._program.stderr_logfile, ".stderr")
 
             try:
                 os.chdir(self._program.directory)
@@ -97,7 +96,7 @@ class Process:
             if process.state != ProcessState.starting and process.state != ProcessState.running:
                 return False
 
-            self._stop_timer = threading.Timer(self._program.stopwaitsecs, _graceful_shutdown_handler)
+            self._stop_timer = threading.Timer(self._program.stopwaitsecs, self._stop_handler)
             self._on_kill = on_kill if on_kill is not None else self._on_kill
             self._state = ProcessState.stopping
 
@@ -106,9 +105,7 @@ class Process:
             except Exception:
                 pass
 
-            
-
-            threading.Timer(self._program.stopwaitsecs, _graceful_shutdown_handler).start()
+            self._stop_timer.start()
 
             return True
 
@@ -118,14 +115,16 @@ class Process:
         """
         with self._lock:
             if self._state == ProcessState.starting:
+                print("HELLO THERE")
                 self._state = ProcessState.backoff
 
                 self._start_timer.cancel() if self._start_timer is not None else None
 
                 if self._restarts < self._program.startretries:
                     self._restarts += 1
+                    print("RUNNING AGAIN:", self._restarts)
 
-                    threading.Timer(self._restarts, self.spawn)
+                    threading.Timer(self._restarts, self.spawn).start()
                 else:
                     self._state = ProcessState.fatal
             elif self._state == ProcessState.running:
@@ -160,18 +159,35 @@ class Process:
                 file = open(logfile, "w")
             except Exception:
                 file = open("/dev/null", "w")
-        
+
         os.dup2(file.fileno(), fd)
 
-    def _start_handler():
+    def _start_handler(self):
         with self._lock:
+            print("WTF")
             if self._state == ProcessState.starting:
                 self._state = ProcessState.running
 
             self._restarts = 0
 
-    def _stop_handler():
+    def _stop_handler(self):
         with self._lock:
             if self._state == ProcessState.stopping:
                 os.kill(self._pid, signal.Signals.SIGKILL)
 
+
+if __name__ == "__main__":
+    program = Program(dict())
+
+    process = Process("program", program)
+
+    process.spawn()
+
+    def func():
+        pid, exit_code = os.waitpid(-1, os.WNOHANG)
+
+        print("PID:", pid, "EXIT_CODE:", exit_code)
+
+        threading.Thread(target=process.on_sigchld, args=[exit_code]).start()
+
+    signal.signal(signal.SIGCHLD, lambda s, f: func())

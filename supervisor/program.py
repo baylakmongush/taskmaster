@@ -1,3 +1,4 @@
+import enum
 import signal
 
 from typing import List, Dict, Any
@@ -25,7 +26,7 @@ class Program:
     command: List[str]
     umask: int
 
-    def __init__(self, name: str, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any]):
         self.stdout_logfile = config.get("stdout", "AUTO") # Either AUTO, NONE or str
         self.stderr_logfile = config.get("stderr", "AUTO") # Either AUTO, NONE or str
         self.startretries = config.get("startretries", 3)
