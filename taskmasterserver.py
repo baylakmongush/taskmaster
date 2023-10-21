@@ -63,9 +63,9 @@ class TaskMasterCtlServer:
             elif action == "status":
                 if args:
                     task_name = " ".join(args)
-                    command_handler.get_status_task(client_socket, task_name, logging)
+                    command_handler.get_status(client_socket, task_name, logging)
                 else:
-                    command_handler.get_status_task(client_socket, None, logging)
+                    command_handler.get_status(client_socket, None, logging)
             elif action == "restart":
                 if args:
                     task_name = " ".join(args)
@@ -82,13 +82,13 @@ class TaskMasterCtlServer:
                 break
             elif action == "exit":
                 break
-            elif action == "config":
+            elif action == "reload":
                 if args:
                     config_str = " ".join(args)
                     config_data = deserialize_config(config_str)
-                    command_handler.update_config(config_data, client_socket, logging)
+                    command_handler.reload(config_data, client_socket, logging)
                 else:
-                    command_handler.send_command_help(client_socket, "config", logging)
+                    command_handler.send_command_help(client_socket, "reload", logging)
             elif action == "help":
                 if args:
                     cmd_to_help = args[0]

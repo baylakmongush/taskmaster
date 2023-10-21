@@ -6,21 +6,22 @@ class CommandHandler:
 
         self.runner = runner
         self.available_commands = [
-            "add", "exit", "open", "reload", "restart",
-            "start", "tail", "avail", "fg", "pid",
-            "remove", "shutdown", "status", "update",
-            "clear", "maintail", "quit",
-            "signal", "stop", "version"
+            "exit", "reload", "restart",
+            "start", "pid", "status",
+            "quit", "stop", "version",
+            "help"
         ]
         self.command_help = {
             "start": "start <name>\tStart a single process\nstart <gname>:*\t\tStart all processes in a group\nstart <name> <name>\tStart multiple processes or groups\nstart all\t\tStart all processes",
             "stop": "stop <name>\tStop a single process\nstop <gname>:*\t\tStop all processes in a group\nstop <name> <name>\tStop multiple processes or groups\nstop all\t\tStop all processes",
             "status": "status <name>\tGet status for a single process\nstatus <gname>:*\tGet status for all processes in a group\nstatus <name> <name>\tGet status for multiple named processes\nstatus\t\t\tGet all process status info",
             "restart": "restart\t\tRestart the remote taskmasterd",
+            "reload": "reload\t\tReload configuration file",
             "help": "help\t\tPrint a list of available actions\nhelp <action>\t\tPrint help for <action>",
             "quit": "quit\t\tExit the taskmasterd shell.",
             "exit": "exit\t\tExit the taskmasterd shell.",
-            "version": "version\t\tShow the version of the remote taskmasterd process"
+            "version": "version\t\tShow the version of the remote taskmasterd process",
+            "pid": "pid <name>\tGet pid for a single process\npid <gname>:*\t\tGet pid for all processes in a group\npid <name> <name>\tGet pid for multiple named processes\npid\t\t\tGet all process pid info"
         }
         self.program_status = {}
 
@@ -56,7 +57,7 @@ class CommandHandler:
             response = f"{task_name} UNKNOWN\n"
         client_socket.send(response.encode())
 
-    def get_status_task(self, client_socket, task_name, logging):
+    def get_status(self, client_socket, task_name, logging):
         # Здесь код для проверки статуса задачи.
         status_info = task_name  # self.check_task_status(task_name) # информация о статусе
 
@@ -65,8 +66,9 @@ class CommandHandler:
 
         client_socket.send(status_string.encode())
 
-    def update_config(self, config_data, client_socket, logging):
-        response = "Updated server configuration\n"
+    def reload(self, config_data, client_socket, logging):
+        self.runner.reload(config_data)
+        response = "Configuration updated\n"
         client_socket.send(response.encode())
 
     def send_help_info(self, client_socket, logging):
@@ -82,6 +84,3 @@ class CommandHandler:
         else:
             response = f"Help information not available for command: {command}\n"
             client_socket.send(response.encode())
-
-    def update_program_status(self, program_name, status, logging):
-        self.program_status[program_name] = status
