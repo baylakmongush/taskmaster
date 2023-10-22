@@ -11,8 +11,9 @@ from typing import List, Dict, Any
 from .group import Group
 
 
-class Supervisor:
-    _groups: Dict[str, Group]
+class Taskmaster:
+    _groups: Dict[str, Group] # Key == group_name
+
     _config: Dict[str, Any]
     _logger: logging.Logger
 
@@ -26,6 +27,9 @@ class Supervisor:
         signal.signal(signal.SIGCHLD, lambda s, f: self._sigchld_handler())
 
     def start(self, name: str) -> bool:
+        """
+        Name in format {group}:{process}
+        """
         try:
             group, process = name.split(":")
         except Exception:
