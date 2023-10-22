@@ -4,6 +4,7 @@ import enum
 import signal
 import tempfile
 import threading
+import logging
 
 from typing import List, Dict, Any, Callable
 
@@ -31,24 +32,24 @@ class Process:
     _restarts: int
     _on_kill: Callable
     _program: Program
+    _logger: logging.Logger
     _state: ProcessState
     _lock: threading.Lock
     _name: str
     _pid: int
 
-    def __init__(self, name: str, program: Program):
+    def __init__(self, name: str, program: Program, logger: logging.Logger):
         self._start_timer = None
         self._stop_timer = None
         self._on_spawn = None
         self._restarts = 0
         self._on_kill = None
         self._program = program
+        self._logger = logger
         self._state = ProcessState.stopped
         self._lock = threading.Lock()
         self._name = name
         self._pid = 0
-
-        print(f"Process '{self._name}' initialized")
 
     def spawn(self, on_spawn: Callable[[int], int] = None) -> bool:
         """
@@ -57,8 +58,6 @@ class Process:
         You MUST check for process state before spawning, make sure that the process is in
             stopped, exited or fatal state, otherwise you're violating the design
         """
-        print(f"Spawning '{self._name}' process")
-
         self._start_timer = threading.Timer(self._program.startsecs, self._start_handler)
         self._on_spawn = on_spawn if on_spawn is not None else self._on_spawn
         self._state = ProcessState.starting if self._program.startsecs > 0 else ProcessState.running
@@ -66,7 +65,7 @@ class Process:
         try:
             self._pid = os.fork()
         except Exception as error:
-            print(f"Can't spawn '{self._name}' process due to an error:", error)
+            self._logger.critical(f"process {self._name} cannot be spawned due to an error: ", error)
 
             return False
 
@@ -86,6 +85,8 @@ class Process:
 
             os.execvpe(self._program.command[0], self._program.command, self._program.environment)
         else:
+            self._logger.info(f"spawned: {self._name} with pid {self._pid}")
+
             self._start_timer.start() if self._program.startsecs > 0 else None
 
         return True
@@ -96,7 +97,7 @@ class Process:
         """
         with self._lock:
             if self._state == ProcessState.starting:
-                print(f"Process '{self._name}' died before it was considered started with code:", exit_code)
+                self._logger.warning(f"backoff: process {self._name} died before (startsecs) with exit_code: {exit_code}")
 
                 self._state = ProcessState.backoff
 
@@ -105,38 +106,37 @@ class Process:
                 if self._restarts < self._program.startretries:
                     self._restarts += 1
 
-                    print(f"Process '{self._name}' will be restarted in '{self._restarts}' seconds")
-
                     threading.Timer(self._restarts, self.spawn).start()
                 else:
-                    print(f"Process '{self._name}' failed to start")
+                    self._logger.error(f"fatal: process {self._name} failed to start, last exit_code: {exit_code}")
 
                     self._state = ProcessState.fatal
                     self._restarts = 0
             elif self._state == ProcessState.running:
-                print(f"Running process '{self._name}' exited with code: {exit_code}. Expected: {exit_code in self._program.exitcodes}")
+                self._logger.info(f"stopped: process {self._name} exited with exit_code {exit_code}, expected: {exit_code in self._program.exitcodes}")
 
                 self._state = ProcessState.exited
 
                 if self._program.autorestart == Autorestart.true:
-                    print(f"Process '{self._name}' will be restarted due to autostart policy")
+                    self._logger.info(f"restarting: process {self._name} configured to be always restarted, restarting...")
 
                     self.spawn()
                 elif self._program.autorestart == Autorestart.unexpected:
                     if exit_code not in self._program.exitcodes:
-                        print(f"Process '{self._name}' will be restarted due to unexpected restart policy")
+                        self._logger.warning(f"restarting: process {self._name} exited with unexpected exit code, restaring...")
 
-                    self.spawn() if exit_code not in self._program.exitcodes else None
+                        self.spawn()
             elif self._state == ProcessState.stopping:
-                print(f"Process '{self._name}' has been stopped")
+                self._logger.info(f"stopped: process {self._name} successfully stopped")
 
                 self._state = ProcessState.stopped
-                self._stop_handler.cancel() if self._stop_handler is not None else None
-                self._pid = 0
+                self._stop_timer.cancel() if self._stop_handler is not None else None
 
                 threading.Thread(target=self._on_kill, args=[self._pid]).start() if self._on_kill is not None else None
+
+                self._pid = 0
             else:
-                print(f"Process '{self._name}' stopped with unknown state")
+                self._logger.critical(f"process {self._name} end up in unknown state")
 
                 self._state = ProcessState.unknown
 
@@ -148,7 +148,7 @@ class Process:
         Could be executed only if the process is in starting or running states
         """
         with self._lock:
-            if process.state != ProcessState.starting and process.state != ProcessState.running:
+            if self._state != ProcessState.starting and self._state != ProcessState.running:
                 return False
 
             self._start_timer.cancel() if self._start_timer is not None else None
@@ -187,9 +187,9 @@ class Process:
 
     def _start_handler(self):
         with self._lock:
-            print(f"Started handler invoked for '{self._name}' process")
-
             if self._state == ProcessState.starting:
+                self._logger.info(f"success: {self._name} entered RUNNING state, process has stayed up for > than {self._program.startsecs} seconds (startsecs)")
+
                 self._state = ProcessState.running
                 self._restarts = 0
 
@@ -197,21 +197,54 @@ class Process:
 
     def _stop_handler(self):
         with self._lock:
-            print(f"Stopped handler invoked for '{self._name}' process")
-
             if self._state == ProcessState.stopping:
-                os.kill(self._pid, signal.Signals.SIGKILL)
+                self._logger.warning(f"stopped: process {self._name} didn't stopped in time, hard killing it...")
+
+                try:
+                    os.kill(self._pid, signal.Signals.SIGKILL)
+                except:
+                    pass
+
+
+def setup_logger():
+    # Define the logging format
+    log_format = "%(asctime)s [%(levelname)s] - %(message)s"
+    date_format = "%Y-%m-%d %H:%M:%S"
+    
+    # Create a logger object
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)  # Set the logging level to DEBUG
+
+    # Console Handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.DEBUG)  # Log everything to the console
+    console_formatter = logging.Formatter(log_format, datefmt=date_format)
+    console_handler.setFormatter(console_formatter)
+    logger.addHandler(console_handler)
+    
+    return logger
 
 
 if __name__ == "__main__":
+    logger = setup_logger()
+
     program = Program(dict())
 
-    program.command = ["python3", "./processes/randomly_fails.py", "3"]
+    #program.command = ["python3", "./processes/randomly_fails.py", "3"]
+    program.command = ["sleep", "5"]
     #program.autorestart = Autorestart.true
 
-    process = Process("sleep0", program)
+    process = Process("sleep0", program, logger)
 
-    process.spawn()
+    def on_spawn(pid):
+        print("started:", pid)
+
+        def on_kill(pid):
+            print("killed:", pid)
+
+        process.kill(on_kill)
+
+    process.spawn(on_spawn)
 
     def func():
         pid, exit_code = os.waitpid(-1, os.WNOHANG)
