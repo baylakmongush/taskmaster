@@ -26,31 +26,17 @@ class CommandHandler:
         self.program_status = {}
 
     def start_task(self, client_socket, group_name, process_name):
-        result = self.taskmaster.start(group_name, process_name)
-        if result:
-            response = f"{group_name}:{process_name} started\n"
-        else:
-            response = f"{group_name}:{process_name} not started\n"
-        client_socket.send(response.encode())
+        start_callback = lambda pid: client_socket.send(f"started: {pid}".encode())
+        self.taskmaster.start(group_name, process_name, start_callback)
 
     def stop_task(self, client_socket, group_name, process_name):
-        def callback(pid: int):
-            client_socket.send(f"stopped: {pid}".encode())
-
-        result = self.taskmaster.stop(group_name, process_name if len(process_name) > 0 else None, callback)
-        # if result:
-        #     response = f"{group_name}:{process_name}: stopped\n"
-        # else:
-        #     response = f"{group_name}:{process_name}: not stopped\n"
-        #client_socket.send(response.encode())
+        callback = lambda pid: client_socket.send(f"stopped: {pid}".encode())
+        self.taskmaster.stop(group_name, process_name if len(process_name) > 0 else None, callback)
 
     def restart_task(self, client_socket, group_name, process_name):
-        result = self.taskmaster.restart(group_name, process_name)
-        if result:
-            response = f"{group_name}:{process_name} restarted\n"
-        else:
-            response = f"{group_name}:{process_name} not restarted\n"
-        client_socket.send(response.encode())
+        callback = lambda pid: client_socket.send(f"restarted: {pid}".encode())
+        self.taskmaster.restart(group_name, process_name, callback)
+
 
     def get_pid(self, client_socket, group_name, process_name):
         result = self.taskmaster.pid(group_name, process_name)
