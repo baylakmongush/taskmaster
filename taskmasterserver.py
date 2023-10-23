@@ -35,7 +35,7 @@ class TaskMasterCtlServer:
 
 
     def handle_client(self, client_socket):
-        command_handler = CommandHandler(logging, self.taskmaster)
+        command_handler = CommandHandler(self.taskmaster)
         while True:
             command = client_socket.recv(1024).decode()
             if not command:

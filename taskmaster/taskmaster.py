@@ -33,8 +33,6 @@ class Taskmaster:
         removed = set(self._config.keys()) - set(config.keys())
         added = set(config.keys()) - set(self._config.keys())
 
-        print(added)
-
         for group in added:
             self._groups[group] = Group(group, config[group], self._logger)
             self.start(group)
@@ -65,7 +63,6 @@ class Taskmaster:
 
     def status(self, group_name: str, process_name: str = None):
         if group_name in self._groups.keys():
-            print("GROUP NAME", group_name)
             if process_name is not None:
                 return self._groups[group_name].status(process_name)
             else:

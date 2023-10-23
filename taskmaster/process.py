@@ -5,6 +5,7 @@ import signal
 import tempfile
 import threading
 import logging
+import time
 
 from typing import List, Dict, Any, Callable
 
@@ -27,10 +28,9 @@ class Process:
     """
     Represents actual process and provides interface to spawn/kill the process
     """
-    name: str
-
     _start_timer: threading.Timer
     _stop_timer: threading.Timer
+    _timestamp: int
     _on_spawn: Callable
     _restarts: int
     _on_kill: Callable
@@ -38,13 +38,15 @@ class Process:
     _logger: logging.Logger
     _state: ProcessState
     _lock: threading.Lock
+    _name: str
     _pid: int
 
     def __init__(self, name: str, program: Program, logger: logging.Logger):
-        self.name = name
+        self._name = name
 
         self._start_timer = None
         self._stop_timer = None
+        self._timestamp = 0
         self._on_spawn = None
         self._restarts = 0
         self._on_kill = None
@@ -53,8 +55,6 @@ class Process:
         self._state = ProcessState.stopped
         self._lock = threading.Lock()
         self._pid = 0
-
-        print("Hello there:", self._program.command)
 
     def spawn(self, on_spawn: Callable[[int], int] = None) -> bool:
         """
@@ -70,7 +70,7 @@ class Process:
         try:
             self._pid = os.fork()
         except Exception as error:
-            self._logger.critical(f"process {self.name} cannot be spawned due to an error: ", error)
+            self._logger.critical(f"process {self._name} cannot be spawned due to an error: ", error)
 
             return False
 
@@ -90,7 +90,7 @@ class Process:
 
             os.execvpe(self._program.command[0], self._program.command, self._program.environment)
         else:
-            self._logger.info(f"spawned: {self.name} with pid {self._pid}")
+            self._logger.info(f"spawned: {self._name} with pid {self._pid}")
 
             self._start_timer.start() if self._program.startsecs > 0 else None
 
@@ -104,7 +104,7 @@ class Process:
         """
         with self._lock:
             if self._state == ProcessState.starting:
-                self._logger.warning(f"backoff: process {self.name} died before (startsecs) with exit_code: {exit_code}")
+                self._logger.warning(f"backoff: process {self._name} died before (startsecs) with exit_code: {exit_code}")
 
                 self._state = ProcessState.backoff
 
@@ -115,26 +115,26 @@ class Process:
 
                     threading.Timer(self._restarts, self.spawn).start()
                 else:
-                    self._logger.error(f"fatal: process {self.name} failed to start, last exit_code: {exit_code}")
+                    self._logger.error(f"fatal: process {self._name} failed to start, last exit_code: {exit_code}")
 
                     self._state = ProcessState.fatal
                     self._restarts = 0
             elif self._state == ProcessState.running:
-                self._logger.info(f"stopped: process {self.name} exited with exit_code {exit_code}, expected: {exit_code in self._program.exitcodes}")
+                self._logger.info(f"stopped: process {self._name} exited with exit_code {exit_code}, expected: {exit_code in self._program.exitcodes}")
 
                 self._state = ProcessState.exited
 
                 if self._program.autorestart == Autorestart.true:
-                    self._logger.info(f"restarting: process {self.name} configured to be always restarted, restarting...")
+                    self._logger.info(f"restarting: process {self._name} configured to be always restarted, restarting...")
 
                     self.spawn()
                 elif self._program.autorestart == Autorestart.unexpected:
                     if exit_code not in self._program.exitcodes:
-                        self._logger.warning(f"restarting: process {self.name} exited with unexpected exit code, restaring...")
+                        self._logger.warning(f"restarting: process {self._name} exited with unexpected exit code, restaring...")
 
                         self.spawn()
             elif self._state == ProcessState.stopping:
-                self._logger.info(f"stopped: process {self.name} successfully stopped")
+                self._logger.info(f"stopped: process {self._name} successfully stopped")
 
                 self._state = ProcessState.stopped
 
@@ -144,7 +144,7 @@ class Process:
 
                 self._pid = 0
             else:
-                self._logger.critical(f"process {self.name} end up in unknown state")
+                self._logger.critical(f"process {self._name} end up in unknown state")
 
                 self._state = ProcessState.unknown
 
@@ -165,24 +165,29 @@ class Process:
             self._on_kill = on_kill if on_kill is not None else self._on_kill
             self._state = ProcessState.stopping
 
+            self._stop_timer.start()
+
             try:
                 os.kill(self._pid, self._program.stopsignal)
             except Exception:
                 return False
 
-            self._stop_timer.start()
 
             return True
 
     @property
     def state(self):
         return self._state
+    
+    @property
+    def name(self):
+        return self._name
 
     def _redirect_fd_into_logfile(self, fd: int, logfile: str, suffix=""):
         file = None
 
         if logfile == "AUTO":
-            file = tempfile.NamedTemporaryFile(mode="w", delete=False, prefix=self.name, suffix=suffix)
+            file = tempfile.NamedTemporaryFile(mode="w", delete=False, prefix=self._name, suffix=suffix)
         elif logfile == "NONE":
             file = open("/dev/null", "w")
         else:
@@ -196,19 +201,23 @@ class Process:
     def _start_handler(self):
         with self._lock:
             if self._state == ProcessState.starting:
-                self._logger.info(f"success: {self.name} entered RUNNING state, process has stayed up for > than {self._program.startsecs} seconds (startsecs)")
+                self._logger.info(f"success: {self._name} entered RUNNING state, process has stayed up for > than {self._program.startsecs} seconds (startsecs)")
 
                 self._state = ProcessState.running
                 self._restarts = 0
+                self._timestamp = time.time()
 
                 threading.Thread(target=self._on_spawn, args=[self._pid]).start() if self._on_spawn is not None else None
 
     def _stop_handler(self):
         with self._lock:
             if self._state == ProcessState.stopping:
-                self._logger.warning(f"stopped: process {self.name} didn't stopped in time, sending sigkill")
+                self._logger.warning(f"stopped: process {self._name} didn't stopped in time, sending sigkill")
 
                 try:
                     os.kill(self._pid, signal.Signals.SIGKILL)
                 except:
                     pass
+
+    def __str__(self):
+        return f"{self._state.name} {self._name} pid {self._pid} uptime {time.time() - self._timestamp}s"

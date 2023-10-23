@@ -33,7 +33,7 @@ class Program:
         self.stopwaitsecs = config.get("stopwaitsecs", 10)
         self.environment = config.get("environment", dict())
         self.autorestart = config.get("autorestart", Autorestart.unexpected)
-        self.stopsignal = config.get("stopsignal", signal.Signals.SIGTERM)
+        self.stopsignal = signal.Signals[config.get("stopsignal", "SIGTERM")].value
         self.exitcodes = config.get("exitcodes", [0])
         self.autostart = config.get("autostart", True)
         self.directory = config.get("directory", None) # None - do not chdir

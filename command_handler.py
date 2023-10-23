@@ -34,12 +34,15 @@ class CommandHandler:
         client_socket.send(response.encode())
 
     def stop_task(self, client_socket, group_name, process_name):
-        result = self.taskmaster.stop(group_name, process_name)
-        if result:
-            response = f"{group_name}:{process_name}: stopped\n"
-        else:
-            response = f"{group_name}:{process_name}: not stopped\n"
-        client_socket.send(response.encode())
+        def callback(pid: int):
+            client_socket.send(f"stopped: {pid}".encode())
+
+        result = self.taskmaster.stop(group_name, process_name if len(process_name) > 0 else None, callback)
+        # if result:
+        #     response = f"{group_name}:{process_name}: stopped\n"
+        # else:
+        #     response = f"{group_name}:{process_name}: not stopped\n"
+        #client_socket.send(response.encode())
 
     def restart_task(self, client_socket, group_name, process_name):
         result = self.taskmaster.restart(group_name, process_name)
@@ -58,8 +61,16 @@ class CommandHandler:
         client_socket.send(response.encode())
 
     def get_status(self, client_socket, group_name, process_name):
-        response = self.taskmaster.status(group_name, process_name)
-        status_string = str(response) + "\n"
+        response = self.taskmaster.status(group_name, process_name if len(process_name) > 0 else None)
+
+        if isinstance(response, list):
+            status_string = ""
+
+            for i in response:
+                status_string += str(i) + "\n"
+        else:
+            status_string = str(response) + "\n"
+
         client_socket.send(status_string.encode())
 
     def reload(self, config_data, client_socket):
