@@ -9,6 +9,7 @@ import logging
 from typing import List, Dict, Any, Callable
 
 from program import Program, Autorestart
+from context import Context
 
 
 class ProcessState(enum.Enum):
@@ -89,6 +90,8 @@ class Process:
 
             self._start_timer.start() if self._program.startsecs > 0 else None
 
+            Context.insert_process(self._pid, self)
+
         return True
 
     def on_sigchld(self, exit_code: int):
@@ -130,6 +133,7 @@ class Process:
                 self._logger.info(f"stopped: process {self._name} successfully stopped")
 
                 self._state = ProcessState.stopped
+
                 self._stop_timer.cancel() if self._stop_handler is not None else None
 
                 threading.Thread(target=self._on_kill, args=[self._pid]).start() if self._on_kill is not None else None
@@ -198,7 +202,7 @@ class Process:
     def _stop_handler(self):
         with self._lock:
             if self._state == ProcessState.stopping:
-                self._logger.warning(f"stopped: process {self._name} didn't stopped in time, hard killing it...")
+                self._logger.warning(f"stopped: process {self._name} didn't stopped in time, sending sigkill")
 
                 try:
                     os.kill(self._pid, signal.Signals.SIGKILL)

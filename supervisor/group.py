@@ -8,17 +8,15 @@ from typing import Dict, Any, Callable
 
 from program import Program
 from process import Process, ProcessState
-
+from context import Context
 
 class Group:
-    _pid_to_process: Dict[int, Process]
     _processes: Dict[str, Process]
     _program: Program
     _logger: logging.Logger
     _name: str
 
     def __init__(self, name: str, config: Dict[str, Any], logger: logging.Logger):
-        self._pid_to_process = dict()
         self._processes = dict()
         self._program = Program(config)
         self._logger = logger
@@ -35,23 +33,13 @@ class Group:
                     process.state == ProcessState.fatal or 
                     process.state == ProcessState.exited):
 
-                def _on_spawn(pid):
-                    self._pid_to_process[pid] = process
-
-                    on_spawn(pid)
-
-                return process.spawn(_on_spawn)
+                return process.spawn(on_spawn)
 
         return False
 
     def stop(self, name: str, on_kill: Callable[[int], None] = None) -> bool:
         if name in self._processes.keys():
-            def _on_kill(pid):
-                del self._pid_to_process[pid]
-
-                on_kill(pid)
-
-            return self._processes[name].kill(_on_kill)
+            return self._processes[name].kill(on_kill)
 
         return False
 
@@ -61,11 +49,6 @@ class Group:
 
         if not self.stop(name, _on_kill):
             return self.start(name, on_spawn)
-
-    def on_sigchld(self, pid: int, exit_code: int):
-        if pid in self._pid_to_process.keys():
-            self._pid_to_process[pid].on_sigchld(exit_code)
-
 
 def setup_logger():
     # Define the logging format
@@ -92,27 +75,36 @@ if __name__ == "__main__":
     config = dict()
 
     config["command"] = ["sleep", "360"] 
-    config["numprocs"] = 5
+    config["numprocs"] = 3
 
     group = Group("sleep", config, logger)
 
-    for i in group._processes.values():
-        def on_spawn(pid):
-            logger.info(f"Spawned: {i._name}")
-
-            def on_kill(pid):
-                logger.info(f"Killed: {i._name}")
-
-            threading.Thread(target=group.stop, args=[i._name, on_kill]).start()
-
-        group.start(i._name, on_spawn)
-
     def func():
-        pid, exit_code = os.waitpid(-1, os.WNOHANG)
+        try:
+            pid, exit_code = os.waitpid(-1, os.WNOHANG)
 
-        threading.Thread(target=group.on_sigchld, args=[pid, exit_code]).start()
+            while pid > 0:
+                process: Process = Context.get_process(pid)
+        
+                if process is not None:
+                    threading.Thread(target=process.on_sigchld, args=[exit_code]).start()
+
+                pid, exit_code = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError:
+            pass
 
     signal.signal(signal.SIGCHLD, lambda s, f: func())
 
+    for i in group._processes.values():
+        group.start(i._name, None)
+
+    time.sleep(5)
+
+    def on_reload(pid):
+        print(f"process {pid} reloaded")
+
+    for i in group._processes.values():
+        group.restart(i._name, on_reload)
+
     while (True):
-        time.sleep(3)
+        time.sleep(1)
