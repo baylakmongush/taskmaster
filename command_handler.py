@@ -27,7 +27,7 @@ class CommandHandler:
 
     def start_task(self, client_socket, group_name, process_name):
         start_callback = lambda pid: client_socket.send(f"started: {pid}".encode())
-        self.taskmaster.start(group_name, process_name, start_callback)
+        self.taskmaster.start(group_name, process_name if len(process_name) > 0 else None, start_callback)
 
     def stop_task(self, client_socket, group_name, process_name):
         callback = lambda pid: client_socket.send(f"stopped: {pid}".encode())
@@ -35,8 +35,7 @@ class CommandHandler:
 
     def restart_task(self, client_socket, group_name, process_name):
         callback = lambda pid: client_socket.send(f"restarted: {pid}".encode())
-        self.taskmaster.restart(group_name, process_name, callback)
-
+        self.taskmaster.restart(group_name, process_name if len(process_name) > 0 else None, callback)
 
     def get_pid(self, client_socket, group_name, process_name):
         result = self.taskmaster.pid(group_name, process_name)
