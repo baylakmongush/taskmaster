@@ -161,7 +161,5 @@ cython_debug/
 .idea
 
 # Mac OS
-err.log
-out.log
-server.log
-taskmaster_socket
+logs/*
+sock/*

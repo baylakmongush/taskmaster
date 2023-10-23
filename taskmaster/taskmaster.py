@@ -9,12 +9,12 @@ import time
 
 from typing import List, Dict, Any, Callable
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import parser
 
-from group import Group
-from context import Context
+from .group import Group
+from .context import Context
 
 
 class Taskmaster:
@@ -52,7 +52,7 @@ class Taskmaster:
             if process_name is not None:
                 self._groups[group_name].stop(process_name, on_kill)
             else:
-                for process in self._groups[group_name].processes:
+                for process in self._groups[group_name].processes.values():
                     self._groups[group_name].stop(process.name, on_kill)
 
     def restart(self, group_name: str, process_name: str = None, on_spawn: Callable[[int], None] = None) -> None:
@@ -60,17 +60,18 @@ class Taskmaster:
             if process_name is not None:
                 return self._groups[group_name].restart(process_name, on_spawn)
             else:
-                for process in self._groups[group_name].processes:
+                for process in self._groups[group_name].processes.values():
                     self._groups[group_name].restart(process.name, on_spawn)
 
     def status(self, group_name: str, process_name: str = None):
         if group_name in self._groups.keys():
+            print("GROUP NAME", group_name)
             if process_name is not None:
                 return self._groups[group_name].status(process_name)
             else:
                 status = list()
 
-                for process in self._groups[group_name].processes:
+                for process in self._groups[group_name].processes.values():
                     status.append(self._groups[group_name].status(process.name))
 
                 return status

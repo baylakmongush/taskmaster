@@ -2,9 +2,9 @@
 
 class CommandHandler:
 
-    def __init__(self, logging, runner):
+    def __init__(self, taskmaster):
 
-        self.runner = runner
+        self.taskmaster = taskmaster
         self.available_commands = [
             "exit", "reload", "restart",
             "start", "pid", "status",
@@ -25,59 +25,55 @@ class CommandHandler:
         }
         self.program_status = {}
 
-    def start_task(self, client_socket, task_name, logging):
-        result = self.runner.start(task_name)
+    def start_task(self, client_socket, group_name, process_name):
+        result = self.taskmaster.start(group_name, process_name)
         if result:
-            response = f"{task_name}: started\n"
+            response = f"{group_name}:{process_name} started\n"
         else:
-            response = f"{task_name}: not started\n"
+            response = f"{group_name}:{process_name} not started\n"
         client_socket.send(response.encode())
 
-    def stop_task(self, client_socket, task_name, logging):
-        result = self.runner.stop(task_name)
+    def stop_task(self, client_socket, group_name, process_name):
+        result = self.taskmaster.stop(group_name, process_name)
         if result:
-            response = f"{task_name}: stopped\n"
+            response = f"{group_name}:{process_name}: stopped\n"
         else:
-            response = f"{task_name}: not stopped\n"
+            response = f"{group_name}:{process_name}: not stopped\n"
         client_socket.send(response.encode())
 
-    def restart_task(self, client_socket, task_name, logging):
-        result = self.runner.restart(task_name)
+    def restart_task(self, client_socket, group_name, process_name):
+        result = self.taskmaster.restart(group_name, process_name)
         if result:
-            response = f"{task_name}: restarted\n"
+            response = f"{group_name}:{process_name} restarted\n"
         else:
-            response = f"{task_name}: not restarted\n"
+            response = f"{group_name}:{process_name} not restarted\n"
         client_socket.send(response.encode())
 
-    def get_pid(self, client_socket, task_name, logging):
-        result = self.runner.pid(task_name)
+    def get_pid(self, client_socket, group_name, process_name):
+        result = self.taskmaster.pid(group_name, process_name)
         if result:
             response = str(result) + "\n"
         else:
-            response = f"{task_name} UNKNOWN\n"
+            response = f"{group_name}:{process_name} UNKNOWN\n"
         client_socket.send(response.encode())
 
-    def get_status(self, client_socket, task_name, logging):
-        # Здесь код для проверки статуса задачи.
-        status_info = task_name  # self.check_task_status(task_name) # информация о статусе
-
-        response = self.runner.status(status_info)
-        status_string = str(response)
-
+    def get_status(self, client_socket, group_name, process_name):
+        response = self.taskmaster.status(group_name, process_name)
+        status_string = str(response) + "\n"
         client_socket.send(status_string.encode())
 
-    def reload(self, config_data, client_socket, logging):
-        self.runner.reload(config_data)
+    def reload(self, config_data, client_socket):
+        self.taskmaster.reload(config_data)
         response = "Configuration updated\n"
         client_socket.send(response.encode())
 
-    def send_help_info(self, client_socket, logging):
+    def send_help_info(self, client_socket):
         help_info = "default commands (type help <topic>):\n"
         help_info += "=====================================\n"
         help_info += " ".join(self.available_commands) + "\n"
         client_socket.send(help_info.encode())
 
-    def send_command_help(self, client_socket, command, logging):
+    def send_command_help(self, client_socket, command):
         if command in self.command_help:
             help_info = f"{command}: {self.command_help[command]}\n"
             client_socket.send(help_info.encode())

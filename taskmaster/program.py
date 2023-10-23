@@ -39,5 +39,5 @@ class Program:
         self.directory = config.get("directory", None) # None - do not chdir
         self.startsecs = config.get("startsecs", 1)
         self.numprocs = config.get("numprocs", 1)
-        self.command = config.get("command", None) # Must be filled - error will be thrown otherwise
+        self.command = config.get("command", None).split() # Must be filled - error will be thrown otherwise
         self.umask = config.get("umask", None) # None - do not set umask

@@ -8,8 +8,8 @@ import logging
 
 from typing import List, Dict, Any, Callable
 
-from program import Program, Autorestart
-from context import Context
+from .program import Program, Autorestart
+from .context import Context
 
 
 class ProcessState(enum.Enum):

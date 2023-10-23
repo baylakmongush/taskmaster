@@ -6,9 +6,8 @@ import time
 
 from typing import Dict, Any, Callable
 
-from program import Program
-from process import Process, ProcessState
-from context import Context
+from .program import Program
+from .process import Process, ProcessState
 
 class Group:
     processes: Dict[str, Process]
