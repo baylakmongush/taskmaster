@@ -1,3 +1,4 @@
+import select
 import socket
 import os
 from serialization import deserialize_config
@@ -19,8 +20,14 @@ class TaskMasterCtlServer:
         self.server_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.should_exit = False
         self.taskmaster = taskmaster
+        self.client_sockets = []
 
     def start(self):
+        signal.signal(signal.SIGTERM, self.handle_signal)
+        signal.signal(signal.SIGINT, self.handle_signal)
+        signal.signal(signal.SIGQUIT, self.handle_signal)
+        signal.signal(signal.SIGHUP, self.handle_signal)
+        signal.signal(signal.SIGUSR2, self.handle_signal)
         if os.path.exists(self.socket_path):
             os.unlink(self.socket_path)
         self.server_socket.bind(self.socket_path)
@@ -93,18 +100,23 @@ class TaskMasterCtlServer:
             else:
                 response = f"*** Unknown syntax: {command}\n"
                 client_socket.send(response.encode())
-        client_socket.close()
 
     def run(self):
-        signal.signal(signal.SIGTERM, self.handle_signal)
-        signal.signal(signal.SIGINT, self.handle_signal)
-        signal.signal(signal.SIGQUIT, self.handle_signal)
-        signal.signal(signal.SIGHUP, self.handle_signal)
-        signal.signal(signal.SIGUSR2, self.handle_signal)
         self.start()
         while not self.should_exit:
-            client_socket, _ = self.server_socket.accept()
-            self.handle_client(client_socket)
+            try:
+                readable, _, _ = select.select([self.server_socket] + self.client_sockets, [], [])
+                for sock in readable:
+                    if sock == self.server_socket:
+                        client_socket, _ = self.server_socket.accept()
+                        self.client_sockets.append(client_socket)
+                    else:
+                        self.handle_client(sock)
+            except KeyboardInterrupt:
+                self.shutdown_server()
+            except OSError as e:
+                if e.errno == 9:
+                    self.client_sockets = [sock for sock in self.client_sockets if sock.fileno() != -1]
 
     def handle_signal(self, signum, frame):
         if signum in (signal.SIGTERM, signal.SIGINT, signal.SIGQUIT):
@@ -118,8 +130,11 @@ class TaskMasterCtlServer:
             self.close_and_reopen_logs()
 
     def shutdown_server(self):
+        for client_socket in self.client_sockets:
+            client_socket.close()
         self.server_socket.close()
         self.should_exit = True
+
 
     def reload_configuration(self):
         # код для перезагрузки конфигурации
@@ -128,11 +143,6 @@ class TaskMasterCtlServer:
     def close_and_reopen_logs(self):
         # код для закрытия и повторного открытия логов
         pass
-
-    def shutdown_server(self):
-        self.server_socket.close()
-        self.should_exit = True
-
 
 def setup_logger():
     # Define the logging format
