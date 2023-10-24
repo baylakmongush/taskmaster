@@ -84,8 +84,10 @@ class TaskMasterCtlServer:
                 else:
                     command_handler.send_command_help(client_socket, "pid")
             elif action == "quit":
+                self.server_socket.close()
                 break
             elif action == "exit":
+                self.server_socket.close()
                 break
             elif action == "reload":
                 if args:
@@ -113,7 +115,6 @@ class TaskMasterCtlServer:
             while not self.should_exit:
                 client_socket, _ = self.server_socket.accept()
                 self.handle_client(client_socket)
-                client_socket.close()
         except KeyboardInterrupt:
             print("Ctrl+C pressed...")
             self.shutdown_server()

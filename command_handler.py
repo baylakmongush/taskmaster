@@ -1,4 +1,6 @@
 
+import threading
+import threading
 
 class CommandHandler:
 
@@ -26,16 +28,52 @@ class CommandHandler:
         self.program_status = {}
 
     def start_task(self, client_socket, group_name, process_name):
-        start_callback = lambda pid: client_socket.send(f"started: {pid}".encode())
-        self.taskmaster.start(group_name, process_name if len(process_name) > 0 else None, start_callback)
+        pids = []
+        event = threading.Event()
+        lock = threading.Lock()
+
+        def callback(pid):
+            with lock:
+                pids.append(pid)
+            event.set()
+
+        self.taskmaster.start(group_name, process_name if len(process_name) > 0 else None, callback)
+
+        event.wait()
+
+        client_socket.send(f"started: {str(pids)}".encode())
 
     def stop_task(self, client_socket, group_name, process_name):
-        callback = lambda pid: client_socket.send(f"stopped: {pid}".encode())
+        pids = []
+        event = threading.Event()
+        lock = threading.Lock()
+
+        def callback(pid):
+            with lock:
+                pids.append(pid)
+            event.set()
+
         self.taskmaster.stop(group_name, process_name if len(process_name) > 0 else None, callback)
 
+        event.wait()
+
+        client_socket.send(f"stopped: {str(pids)}".encode())
+
     def restart_task(self, client_socket, group_name, process_name):
-        callback = lambda pid: client_socket.send(f"restarted: {pid}".encode())
+        pids = []
+        event = threading.Event()
+        lock = threading.Lock()
+
+        def callback(pid):
+            with lock:
+                pids.append(pid)
+            event.set()
+
         self.taskmaster.restart(group_name, process_name if len(process_name) > 0 else None, callback)
+
+        event.wait()
+
+        client_socket.send(f"restarted: {str(pids)}".encode())
 
     def get_pid(self, client_socket, group_name, process_name):
         result = self.taskmaster.pid(group_name, process_name)
