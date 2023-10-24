@@ -5,19 +5,13 @@ from command_handler import CommandHandler
 import logging
 import parser
 from taskmaster import Taskmaster
-
-# Запустите этот серверный код следующим образом:
-# python taskmasterserver.py
-#
-# По умолчанию, из файла taskmaster_socket будет создан UNIX domain socket.
-
+import signal
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     filename='logs/server.log'
 )
-
 
 class TaskMasterCtlServer:
     def __init__(self, socket_path, taskmaster):
@@ -32,22 +26,17 @@ class TaskMasterCtlServer:
         self.server_socket.bind(self.socket_path)
         self.server_socket.listen(1)
 
-
-
     def handle_client(self, client_socket):
         command_handler = CommandHandler(self.taskmaster)
-        while True:
+        while not self.should_exit:
             command = client_socket.recv(1024).decode()
             if not command:
                 break
-
             parts = command.split()
             if len(parts) == 0:
                 continue
-
             action = parts[0]
             args = parts[1:]
-
             if action == "start":
                 if args:
                     task_name = " ".join(args)
@@ -83,11 +72,7 @@ class TaskMasterCtlServer:
                     command_handler.get_pid(client_socket, group_name, process_name)
                 else:
                     command_handler.send_command_help(client_socket, "pid")
-            elif action == "quit":
-                self.server_socket.close()
-                break
-            elif action == "exit":
-                self.server_socket.close()
+            elif action in ("quit", "exit"):
                 break
             elif action == "reload":
                 if args:
@@ -108,19 +93,41 @@ class TaskMasterCtlServer:
             else:
                 response = f"*** Unknown syntax: {command}\n"
                 client_socket.send(response.encode())
+        client_socket.close()
 
     def run(self):
+        signal.signal(signal.SIGTERM, self.handle_signal)
+        signal.signal(signal.SIGINT, self.handle_signal)
+        signal.signal(signal.SIGQUIT, self.handle_signal)
+        signal.signal(signal.SIGHUP, self.handle_signal)
+        signal.signal(signal.SIGUSR2, self.handle_signal)
         self.start()
-        try:
-            while not self.should_exit:
-                client_socket, _ = self.server_socket.accept()
-                self.handle_client(client_socket)
-        except KeyboardInterrupt:
-            print("Ctrl+C pressed...")
+        while not self.should_exit:
+            client_socket, _ = self.server_socket.accept()
+            self.handle_client(client_socket)
+
+    def handle_signal(self, signum, frame):
+        if signum in (signal.SIGTERM, signal.SIGINT, signal.SIGQUIT):
+            print(f"Received signal {signum}. Exiting...")
             self.shutdown_server()
-        except EOFError:
-            print("Ctrl+D pressed...")
-            self.shutdown_server()
+        elif signum == signal.SIGHUP:
+            print("Received SIGHUP signal. Reloading configuration...")
+            self.reload_configuration()
+        elif signum == signal.SIGUSR2:
+            print("Received SIGUSR2 signal. Closing and reopening logs...")
+            self.close_and_reopen_logs()
+
+    def shutdown_server(self):
+        self.server_socket.close()
+        self.should_exit = True
+
+    def reload_configuration(self):
+        # код для перезагрузки конфигурации
+        pass
+
+    def close_and_reopen_logs(self):
+        # код для закрытия и повторного открытия логов
+        pass
 
     def shutdown_server(self):
         self.server_socket.close()

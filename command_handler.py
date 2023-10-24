@@ -1,6 +1,5 @@
 
 import threading
-import threading
 
 class CommandHandler:
 
@@ -43,6 +42,8 @@ class CommandHandler:
 
         client_socket.send(f"started: {str(pids)}".encode())
 
+        event.clear()
+
     def stop_task(self, client_socket, group_name, process_name):
         pids = []
         event = threading.Event()
@@ -58,6 +59,8 @@ class CommandHandler:
         event.wait()
 
         client_socket.send(f"stopped: {str(pids)}".encode())
+
+        event.clear()
 
     def restart_task(self, client_socket, group_name, process_name):
         pids = []
