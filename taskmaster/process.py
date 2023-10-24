@@ -183,6 +183,10 @@ class Process:
     def name(self):
         return self._name
 
+    @property
+    def pid(self):
+        return self._pid
+
     def _redirect_fd_into_logfile(self, fd: int, logfile: str, suffix=""):
         file = None
 
