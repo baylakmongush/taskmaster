@@ -49,6 +49,7 @@ class Process:
         self._timestamp = 0
         self._on_spawn = None
         self._restarts = 0
+        self._on_fail = None
         self._on_kill = None
         self._program = program
         self._logger = logger
@@ -56,7 +57,7 @@ class Process:
         self._lock = threading.Lock()
         self._pid = 0
 
-    def spawn(self, on_spawn: Callable[[int], int] = None) -> bool:
+    def spawn(self, on_spawn: Callable[[int], None] = None, on_fail: Callable[[int], None] = None) -> bool:
         """
         This method will ALWAYS spawn new process, rewriting the state, 
             so be careful with it and make sure to check the state before spawning
@@ -65,6 +66,7 @@ class Process:
         """
         self._start_timer = threading.Timer(self._program.startsecs, self._start_handler)
         self._on_spawn = on_spawn if on_spawn is not None else self._on_spawn
+        self._on_fail = on_fail if on_fail is not None else self._on_fail
         self._state = ProcessState.starting if self._program.startsecs > 0 else ProcessState.running
 
         try:
@@ -119,8 +121,11 @@ class Process:
 
                     self._state = ProcessState.fatal
                     self._restarts = 0
+
+                    threading.Thread(target=self._on_fail, args=[self._pid]).start() if self._on_fail is not None else None
+
             elif self._state == ProcessState.running:
-                self._logger.info(f"stopped: process {self._name} exited with exit_code {exit_code}, expected: {exit_code in self._program.exitcodes}")
+                self._logger.info(f"stopped: process {self._name} pid {self._pid} exited with exit_code {exit_code}, expected: {exit_code in self._program.exitcodes}")
 
                 self._state = ProcessState.exited
 
@@ -171,7 +176,6 @@ class Process:
                 os.kill(self._pid, self._program.stopsignal)
             except Exception:
                 return False
-
 
             return True
 

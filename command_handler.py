@@ -1,6 +1,10 @@
 
 import threading
 
+from typing import Dict, List
+
+from taskmaster import Process
+
 class CommandHandler:
 
     def __init__(self, taskmaster):
@@ -31,14 +35,45 @@ class CommandHandler:
         event = threading.Event()
         lock = threading.Lock()
 
-        def callback(pid):
+        def on_spawn(pid: int):
+            """
+            This process has been successfully started within startsecs window
+            """
             with lock:
                 pids.append(pid)
-            event.set()
 
-        self.taskmaster.start(group_name, process_name if len(process_name) > 0 else None, callback)
+                event.set()
 
-        event.wait()
+        def on_fail(pid: int):
+            """
+            This process DID NOT start in startsecs, do something about it
+            """
+            with lock:
+                pids.append(pid)
+
+                event.set()
+
+        success: bool | Dict[str, bool]  = self.taskmaster.start(group_name, process_name if len(process_name) > 0 else None, on_spawn, on_fail)
+
+        if isinstance(success, bool):
+            how_many_to_wait: int = 1 if success else 0
+        else:
+            how_many_to_wait: int = len(list(filter(lambda suc: suc, success.values())))
+
+        while how_many_to_wait > 0:
+            how_many_to_wait -= 1
+
+            event.wait()
+
+        if isinstance(success, bool) and success:
+            if not success:
+                # This process DID NOT start and never tried to be started, process state violation, when the process is in state where it's impossible to start it
+                client_socket.send(f"process {process_name} cannot be started".encode())
+        else:
+            for k, v in success.items():
+                if not v:
+                    # This process DID NOT start and never tried to be started, process state violation, when the process is in state where it's impossible to start it
+                    client_socket.send(f"process {k} cannot be started".encode())
 
         client_socket.send(f"started: {str(pids)}".encode())
 
@@ -54,7 +89,7 @@ class CommandHandler:
                 pids.append(pid)
             event.set()
 
-        self.taskmaster.stop(group_name, process_name if len(process_name) > 0 else None, callback)
+        success: bool | Dict[str, bool] = self.taskmaster.stop(group_name, process_name if len(process_name) > 0 else None, callback)
 
         event.wait()
 
@@ -72,22 +107,22 @@ class CommandHandler:
                 pids.append(pid)
             event.set()
 
-        self.taskmaster.restart(group_name, process_name if len(process_name) > 0 else None, callback)
+        success: bool | Dict[str, bool] = self.taskmaster.restart(group_name, process_name if len(process_name) > 0 else None, callback)
 
         event.wait()
 
         client_socket.send(f"restarted: {str(pids)}".encode())
 
     def get_pid(self, client_socket, group_name, process_name):
-        result = self.taskmaster.pid(group_name, process_name)
-        if result:
+        result: int = self.taskmaster.pid(group_name, process_name)
+        if result > 0:
             response = str(result) + "\n"
         else:
             response = f"{group_name}:{process_name} UNKNOWN\n"
         client_socket.send(response.encode())
 
     def get_status(self, client_socket, group_name, process_name):
-        response = self.taskmaster.status(group_name, process_name if len(process_name) > 0 else None)
+        response: None | Process | List[Process] = self.taskmaster.status(group_name, process_name if len(process_name) > 0 else None)
 
         if isinstance(response, list):
             status_string = ""

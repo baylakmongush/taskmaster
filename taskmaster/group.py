@@ -26,7 +26,7 @@ class Group:
         for i in range(self._program.numprocs):
             self.processes[f"{self.name}{i}"] = Process(f"{self.name}{i}", self._program, logger)
 
-    def start(self, name: str, on_spawn: Callable[[int], None] = None) -> bool:
+    def start(self, name: str, on_spawn: Callable[[int], None] = None, on_fail: Callable[[int], None] = None) -> bool:
         if name in self.processes.keys():
             process: Process = self.processes[name]
 
@@ -34,7 +34,7 @@ class Group:
                     process.state == ProcessState.fatal or 
                     process.state == ProcessState.exited):
 
-                return process.spawn(on_spawn)
+                return process.spawn(on_spawn, on_fail)
 
         return False
 
@@ -45,7 +45,7 @@ class Group:
         return False
 
     def restart(self, name: str, on_spawn: Callable[[int], None] = None) -> bool:
-        def _on_kill(pid):
+        def _on_kill(pid: int):
             self.start(name, on_spawn)
 
         if not self.stop(name, _on_kill):

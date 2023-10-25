@@ -56,31 +56,49 @@ class Taskmaster:
 
         self._config = config
 
-    def start(self, group_name: str, process_name: str = None, on_spawn: Callable[[int], None] = None) -> None:
+    def start(self, group_name: str, process_name: str = None, on_spawn: Callable[[int], None] = None, on_fail: Callable[[int], None] = None) -> bool:
         if group_name in self._groups.keys():
             if process_name is not None:
-                self._groups[group_name].start(process_name, on_spawn)
+                return self._groups[group_name].start(process_name, on_spawn, on_fail)
             else:
-                for process in self._groups[group_name].processes.values():
-                    self._groups[group_name].start(process.name, on_spawn)
+                status = dict()
 
-    def stop(self, group_name: str, process_name: str = None, on_kill: Callable[[int], None] = None) -> None:
+                for process in self._groups[group_name].processes.values():
+                    status[process.name] = self._groups[group_name].start(process.name, on_spawn, on_fail)
+
+                return status
+
+        return False
+
+    def stop(self, group_name: str, process_name: str = None, on_kill: Callable[[int], None] = None) -> bool:
         if group_name in self._groups.keys():
             if process_name is not None:
-                self._groups[group_name].stop(process_name, on_kill)
+                return self._groups[group_name].stop(process_name, on_kill)
             else:
-                for process in self._groups[group_name].processes.values():
-                    self._groups[group_name].stop(process.name, on_kill)
+                status = dict()
 
-    def restart(self, group_name: str, process_name: str = None, on_spawn: Callable[[int], None] = None) -> None:
+                for process in self._groups[group_name].processes.values():
+                    status[process.name] = self._groups[group_name].stop(process.name, on_kill)
+
+                return status
+
+        return False
+
+    def restart(self, group_name: str, process_name: str = None, on_spawn: Callable[[int], None] = None) -> bool:
         if group_name in self._groups.keys():
             if process_name is not None:
                 return self._groups[group_name].restart(process_name, on_spawn)
             else:
-                for process in self._groups[group_name].processes.values():
-                    self._groups[group_name].restart(process.name, on_spawn)
+                status = dict()
 
-    def status(self, group_name: str, process_name: str = None):
+                for process in self._groups[group_name].processes.values():
+                    status[process.name] = self._groups[group_name].restart(process.name, on_spawn)
+
+                return status
+
+        return False
+
+    def status(self, group_name: str, process_name: str = None) -> Process | List[Process] | None:
         if group_name in self._groups.keys():
             if process_name is not None:
                 return self._groups[group_name].status(process_name)
@@ -91,6 +109,8 @@ class Taskmaster:
                     status.append(self._groups[group_name].status(process.name))
 
                 return status
+
+        return None
 
     def pid(self, group_name: str, process_name: str) -> int:
         if group_name in self._groups.keys():
