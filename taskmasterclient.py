@@ -1,5 +1,5 @@
 import socket
-import parser_config
+import parser as config_parser
 import argparse
 import sys
 from serialization import serialize_config
@@ -65,18 +65,15 @@ def main():
 
     parser = argparse.ArgumentParser(description="TaskMasterCtl client")
     parser.add_argument("command", nargs="*", help="Command to send")
-    # parser.add_argument("-c", "--config", type=str, help="Path to the configuration file")
+    parser.add_argument("-c", "--config", type=str, help="Path to the configuration file")
 
     args = parser.parse_args()
 
-    # config_path = args.config
-    config_parser = parser_config.Parser()
+    config_path = args.config
 
-    # if config_path is not None:
-    #     config_parser.parse_from_file(config_path)
-
-    # config_data = config_parser.get_config_data()
-    # client.send_config(config_data)
+    if config_path is not None:
+        config = config_parser.create_parser(config_path)
+        client.send_config(config)
 
     if args.command:
         command = " ".join(args.command)

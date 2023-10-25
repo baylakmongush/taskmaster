@@ -21,7 +21,6 @@ class Parser:
                         print("File content is not a valid YAML dictionary: " + self.file_path)
                 except yaml.YAMLError as exc:
                     if hasattr(exc, 'problem_mark'):
-                        # Get the error location in the file
                         mark = exc.problem_mark
                         error_location = f"Line {mark.line + 1}, Column {mark.column + 1}"
                         print(f"YAML parsing error at {error_location}: {exc.problem}")
@@ -30,16 +29,12 @@ class Parser:
         else:
             print("Invalid or missing .yaml or .yml file: " + self.file_path)
 
-def create_parser():
-    default_config_paths = ['taskmaster.yaml', '/etc/taskmaster.yaml', '/etc/taskmaster/taskmaster.yaml', '/etc/taskmaster.yml', '/etc/taskmaster/taskmaster.yml']
 
-    parser = argparse.ArgumentParser(description='Taskmaster')
-    parser.add_argument('-c', '--config', type=str, help='Path to the configuration file')
-    args = parser.parse_args()
+def create_parser(config_path: str = None):
+    default_config_paths = ['taskmaster.yaml', '/etc/taskmaster.yaml', '/etc/taskmaster/taskmaster.yaml',
+                            '/etc/taskmaster.yml', '/etc/taskmaster/taskmaster.yml']
 
-    if args.config is not None:
-        config_path = args.config
-    else:
+    if config_path is None:
         for path in default_config_paths:
             if os.path.isfile(path):
                 config_path = path
@@ -53,9 +48,9 @@ def create_parser():
     return config_parser
 
 
-
 def main():
-    default_config_paths = ['/etc/taskmaster.yaml', '/etc/taskmaster/taskmaster.yaml', '/etc/taskmaster.yml', '/etc/taskmaster/taskmaster.yml']
+    default_config_paths = ['/etc/taskmaster.yaml', '/etc/taskmaster/taskmaster.yaml', '/etc/taskmaster.yml',
+                            '/etc/taskmaster/taskmaster.yml']
 
     parser = argparse.ArgumentParser(description='Taskmaster')
     parser.add_argument('-c', '--config', type=str, help='Path to the configuration file')
@@ -80,6 +75,7 @@ def main():
         print(config_data)
     else:
         print("Failed to load configuration data.")
+
 
 if __name__ == '__main__':
     main()

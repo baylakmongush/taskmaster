@@ -47,22 +47,46 @@ class TaskMasterCtlServer:
             if action == "start":
                 if args:
                     task_name = " ".join(args)
-                    group_name, process_name = task_name.split(":")
-                    command_handler.start_task(client_socket, group_name, process_name)
+                    if ":" in task_name:
+                        group_name, process_name = task_name.split(":")
+                        if group_name is not None:
+                            command_handler.start_task(client_socket, group_name, process_name)
+                        else:
+                            response = "Error: Group name is missing.\n"
+                            client_socket.send(response.encode())
+                    else:
+                        response = "Error: Command should be in the format 'start group_name:process_name'\n"
+                        client_socket.send(response.encode())
                 else:
                     command_handler.send_command_help(client_socket, "start")
             elif action == "stop":
                 if args:
                     task_name = " ".join(args)
-                    group_name, process_name = task_name.split(":")
-                    command_handler.stop_task(client_socket, group_name, process_name)
+                    if ":" in task_name:
+                        group_name, process_name = task_name.split(":")
+                        if group_name is not None:
+                            command_handler.stop_task(client_socket, group_name, process_name)
+                        else:
+                            response = "Error: Group name is missing.\n"
+                            client_socket.send(response.encode())
+                    else:
+                        response = "Error: Command should be in the format 'stop group_name:process_name'\n"
+                        client_socket.send(response.encode())
                 else:
                     command_handler.send_command_help(client_socket, "stop")
             elif action == "status":
                 if args:
                     task_name = " ".join(args)
-                    group_name, process_name = task_name.split(":")
-                    command_handler.get_status(client_socket, group_name, process_name)
+                    if ":" in task_name:
+                        group_name, process_name = task_name.split(":")
+                        if group_name is not None:
+                            command_handler.get_status(client_socket, group_name, process_name)
+                        else:
+                            response = "Error: Group name is missing.\n"
+                            client_socket.send(response.encode())
+                    else:
+                        response = "Error: Command should be in the format 'status group_name:process_name'\n"
+                        client_socket.send(response.encode())
                 else:
                     command_handler.get_status(client_socket, None)
             elif action == "restart":
