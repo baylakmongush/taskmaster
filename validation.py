@@ -4,7 +4,6 @@ import signal
 
 from umask import validate_umask
 
-
 # Purpose: Parse config file and validate it
 
 def validate_config(config):
@@ -31,20 +30,20 @@ def validate_config(config):
                 print(f"Error: Required parameter '{param}' is missing in the configuration for program '{program_name}'.")
                 return False
 
-        if program_config.get('numprocs') is not None and (not isinstance(program_config['numprocs'], int) or program_config['numprocs'] <= 0):
-            print(f"Error: 'numprocs' must be a positive integer in the configuration for program '{program_name}'.")
+        if program_config.get('numprocs') is not None and (not isinstance(program_config['numprocs'], int) or program_config['numprocs'] <= 0 or program_config['numprocs'] > 100):
+            print(f"Error: 'numprocs' must be a positive integer less than or equal to 100 in the configuration for program '{program_name}'.")
             return False
 
-        if program_config.get('startsecs') is not None and (not isinstance(program_config['startsecs'], int) or program_config['startsecs'] < 0):
-            print(f"Error: 'startsecs' must be a non-negative integer in the configuration for program '{program_name}'.")
+        if program_config.get('startsecs') is not None and (not isinstance(program_config['startsecs'], int) or program_config['startsecs'] < 0 or program_config['startsecs'] > 3600):
+            print(f"Error: 'startsecs' must be a non-negative integer less than or equal to 3600 in the configuration for program '{program_name}'.")
             return False
 
-        if program_config.get('startretries') is not None and (not isinstance(program_config['startretries'], int) or program_config['startretries'] < 0):
-            print(f"Error: 'startretries' must be a non-negative integer in the configuration for program '{program_name}'.")
+        if program_config.get('startretries') is not None and (not isinstance(program_config['startretries'], int) or program_config['startretries'] < 0 or program_config['startretries'] > 3600):
+            print(f"Error: 'startretries' must be a non-negative integer less than or equal to 3600 in the configuration for program '{program_name}'.")
             return False
 
-        if program_config.get('stopwaitsecs') is not None and (not isinstance(program_config['stopwaitsecs'], int) or program_config['stopwaitsecs'] < 0):
-            print(f"Error: 'stopwaitsecs' must be a non-negative integer in the configuration for program '{program_name}'.")
+        if program_config.get('stopwaitsecs') is not None and (not isinstance(program_config['stopwaitsecs'], int) or program_config['stopwaitsecs'] < 0 or program_config['stopwaitsecs'] > 3600):
+            print(f"Error: 'stopwaitsecs' must be a non-negative integer less than or equal to 3600 in the configuration for program '{program_name}'.")
             return False
 
         if program_config.get('umask') is not None:
