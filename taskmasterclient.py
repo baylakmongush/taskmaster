@@ -2,7 +2,6 @@ import os
 import socket
 import argparse
 import sys
-from serialization import serialize_config
 import readline
 import yaml
 

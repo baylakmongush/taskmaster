@@ -3,10 +3,7 @@ import select
 import socket
 import os
 import time
-
 import yaml
-
-from serialization import deserialize_config
 from command_handler import CommandHandler
 import logging
 import parser_config as config_parser
