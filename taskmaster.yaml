@@ -1,5 +1,5 @@
 programs:
   sleep:
     command: sleep 360
-    numprocs: 3
+    numprocs: 2
 

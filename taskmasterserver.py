@@ -195,7 +195,14 @@ class TaskMasterCtlServer:
         self.should_exit = True
 
     def reload_configuration(self):
-        self.taskmaster.reload(self.config)
+        if self.config_path is not None:
+            prs = config_parser.create_parser(self.config_path, self.logger)
+            self.config = prs.parse()["programs"]
+            self.taskmaster.reload(self.config)
+        else:
+            prs = config_parser.create_parser(None, self.logger)
+            self.config = prs.parse()["programs"]
+            self.taskmaster.reload(self.config)
 
 
 def setup_logger():
