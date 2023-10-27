@@ -7,7 +7,7 @@ import logging
 import tempfile
 import threading
 
-import parser
+import parser_config
 
 
 

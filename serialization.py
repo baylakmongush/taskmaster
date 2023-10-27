@@ -9,7 +9,6 @@ def serialize_config(config_data):
         print(f"Error serializing config: {str(e)}")
         return None
 
-
 def deserialize_config(config_str):
     try:
         config_data = yaml.safe_load(config_str)

@@ -1,7 +1,7 @@
 programs:
   sleep:
     command: sleep 360
-    numprocs: 2
+    numprocs: 3
     autostart: true
     autorestart: always
     exitcodes: [0, 2]
@@ -15,7 +15,7 @@ programs:
       ENV_VAR1: value1
       ENV_VAR2: value2
     workingdir: /tmp
-    umask: "777"
+    umask: 777
   sleep2:
     command: sleep 360
     numprocs: 2
@@ -32,15 +32,4 @@ programs:
       ENV_VAR1: value1
       ENV_VAR2: value2
     workingdir: /tmp
-    umask: "777"
-taskmasterctl:
-  serverurl: unix:///tmp/supervisor.sock
-taskmasterd:
-  logfile: /tmp/taskmasterd.log
-  logfile_maxbytes: 50MB
-  logfile_backups: 10
-  loglevel: info
-  pidfile: /tmp/supervisord.pid
-  nodaemon: false
-
-
+    umask: 777

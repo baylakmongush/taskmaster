@@ -1,12 +1,15 @@
+import argparse
 import select
 import socket
 import os
 import time
 
+import yaml
+
 from serialization import deserialize_config
 from command_handler import CommandHandler
 import logging
-import parser
+import parser_config as config_parser
 from taskmaster import Taskmaster
 import signal
 
@@ -19,6 +22,7 @@ class TaskMasterCtlServer:
         self.taskmaster = taskmaster
         self.client_sockets = []
         self.config = config
+        self.config_path = None
         self.logger = logger
 
     def start(self):
@@ -84,10 +88,13 @@ class TaskMasterCtlServer:
                             response = "Error: Group name is missing.\n"
                             client_socket.send(response.encode())
                     else:
-                        response = "Error: Command should be in the format 'status group_name:process_name'\n"
+                        response = "Error: Command should be in the format 'status group_name:process_name'\n" \
+                                   "Or 'status group_name:'\n"
                         client_socket.send(response.encode())
                 else:
-                    command_handler.get_status(client_socket, None)
+                    response = "Error: Command should be in the format 'status group_name:process_name'\n" \
+                                   "Or 'status group_name:'\n"
+                    client_socket.send(response.encode())
             elif action == "restart":
                 if args:
                     task_name = " ".join(args)
@@ -104,13 +111,32 @@ class TaskMasterCtlServer:
                     command_handler.send_command_help(client_socket, "pid")
             elif action in ("quit", "exit"):
                 break
-            elif action == "reload":
+            elif action == "config":
                 if args:
-                    config_str = " ".join(args)
-                    config_data = deserialize_config(config_str)
-                    command_handler.reload(config_data, client_socket)
+                    config_yaml = " ".join(args)
+                    try:
+                        config_path = config_yaml
+                        config_data = yaml.safe_load(config_yaml)
+                        if config_data:
+                            self.config_path = config_path
+                            if config_path and not os.path.isfile(config_path):
+                                print(f"Error: The specified configuration file '{config_path}' does not exist.")
+                                self.logger.error(f"Error: The specified configuration file '{config_path}' does not "
+                                                  f"exist.")
+                                client_socket.send(f"Error: The specified configuration file '{config_path}' does not "
+                                                   f"exist.".encode())
+                            else:
+                                client_socket.send("Configuration was added, need to reload with command: reload for "
+                                                   "apply changes\n".encode())
+                        else:
+                            print("Failed to deserialize configuration data.")
+                    except Exception as e:
+                        print(f"Error deserializing configuration: {str(e)}")
                 else:
-                    command_handler.send_command_help(client_socket, "reload")
+                    command_handler.send_command_help(client_socket, "config")
+            elif action == "reload":
+                config_data = self.config_path
+                command_handler.reload_task(config_data, client_socket)
             elif action == "help":
                 if args:
                     cmd_to_help = args[0]
@@ -151,10 +177,6 @@ class TaskMasterCtlServer:
             print("Received SIGHUP signal. Reloading configuration...")
             self.logger.info("Received SIGHUP signal. Reloading configuration...")
             self.reload_configuration()
-        elif signum == signal.SIGUSR2:
-            print("Received SIGUSR2 signal. Closing and reopening logs...")
-            self.logger.info("Received SIGUSR2 signal. Closing and reopening logs...")
-            self.close_and_reopen_logs()
 
     def shutdown_server(self):
         for client_socket in self.client_sockets:
@@ -162,13 +184,9 @@ class TaskMasterCtlServer:
         self.server_socket.close()
         self.should_exit = True
 
-
     def reload_configuration(self):
         self.taskmaster.reload(self.config)
 
-    def close_and_reopen_logs(self):
-        # код для закрытия и повторного открытия логов
-        pass
 
 def setup_logger():
     # Define the logging format
@@ -190,11 +208,16 @@ def setup_logger():
 
 
 if __name__ == "__main__":
-    socket_path = "sock/taskmaster_socket"
+    parser = argparse.ArgumentParser(description="Taskmaster Server")
+    parser.add_argument("socket_path", help="Path to the socket file")
+
+    args = parser.parse_args()
+
+    socket_path = args.socket_path
     setup_logger_debug = setup_logger()
     setup_logger_debug.info(f"Server listen to socket: {socket_path}")
     taskmaster = Taskmaster(setup_logger_debug)
-    prs = parser.create_parser()
+    prs = config_parser.create_parser(None, setup_logger_debug)
     config = prs.parse()["programs"]
     taskmaster.reload(config)
     server = TaskMasterCtlServer(socket_path, taskmaster, config, setup_logger_debug)

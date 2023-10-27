@@ -1,24 +1,11 @@
+import os
 import socket
-import parser as config_parser
 import argparse
 import sys
 from serialization import serialize_config
 import readline
+import yaml
 
-
-# Запустите этот клиентский код следующим образом:
-# По умолчанию, taskmaster_socket находится в текущей директории.
-# Если вы хотите изменить путь к taskmaster_socket, то измените его в taskmasterserver.py и taskmasterclient.py
-#
-# python taskmasterclient.py [команда] [название задачи]
-# Команды: start, stop, status, reread, reload, quit
-#
-# Либо:
-# python taskmasterclient.py, чтобы запустить интерактивный режим.
-#
-# В интерактивном режиме вы можете вводить команды в формате:
-# [команда] [название задачи]
-# Команды: start, stop, status, reread, reload, quit
 
 class TaskMasterCtlClient:
     def __init__(self, socket_path):
@@ -36,17 +23,22 @@ class TaskMasterCtlClient:
         try:
             self.client_socket.send(command.encode())
             response = self.client_socket.recv(1024).decode()
-            print(response)
+            if response.startswith("Error:"):
+                print(f"Server returned an error: {response}")
+            else:
+                print(response)
         except BrokenPipeError:
             print("Server connection closed...")
             sys.exit(0)
 
     def send_config(self, config_data):
-        config_str = serialize_config(config_data)
         try:
-            self.client_socket.send(f"config {config_str}".encode())
+            self.client_socket.send(f"config {config_data}".encode())
             response = self.client_socket.recv(1024).decode()
-            print(response)
+            if response.startswith("Error:"):
+                print(f"Server returned an error: {response}")
+            else:
+                print(response)
         except BrokenPipeError:
             print("Server connection closed...")
             sys.exit(0)
@@ -56,29 +48,43 @@ class TaskMasterCtlClient:
 
 
 def main():
-    socket_path = "sock/taskmaster_socket"  # Путь к UNIX domain socket
-    client = TaskMasterCtlClient(socket_path)
-
-    if not client.connect():
-        print("Error: Server is not running.")
-        sys.exit(1)
-
+    # Define command-line arguments
     parser = argparse.ArgumentParser(description="TaskMasterCtl client")
+    parser.add_argument("socket", type=str, help="Path to the UNIX domain socket")
     parser.add_argument("command", nargs="*", help="Command to send")
     parser.add_argument("-c", "--config", type=str, help="Path to the configuration file")
 
     args = parser.parse_args()
+    socket_path = args.socket
+    client = TaskMasterCtlClient(socket_path)
+
+    # Attempt to connect to the server
+    if not client.connect():
+        print("Error: Server is not running.")
+        sys.exit(1)
 
     config_path = args.config
 
-    if config_path is not None:
-        config = config_parser.create_parser(config_path)
-        client.send_config(config)
+    if config_path and not os.path.isfile(config_path):
+        print(f"Error: The specified configuration file '{config_path}' does not exist.")
+        exit(1)
 
+    if config_path:
+        with open(config_path, 'r') as file:
+            try:
+                config = yaml.safe_load(file)
+                serialize_config(config)
+                client.send_config(args.config)
+            except yaml.YAMLError as e:
+                print(f"Ошибка при чтении конфигурационного файла: {e}")
+                return None
+
+    # Send a command if command-line arguments are provided
     if args.command:
         command = " ".join(args.command)
         client.send_command(command)
     else:
+        # Interactive mode for entering commands
         while True:
             try:
                 user_input = input("taskmaster> ").strip()

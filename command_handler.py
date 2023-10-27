@@ -1,6 +1,7 @@
 
 import threading
 from taskmaster import Process
+import parser_config
 
 
 class CommandHandler:
@@ -24,7 +25,8 @@ class CommandHandler:
             "quit": "quit\t\tExit the taskmasterd shell.",
             "exit": "exit\t\tExit the taskmasterd shell.",
             "version": "version\t\tShow the version of the remote taskmasterd process",
-            "pid": "pid <name>\tGet pid for a single process\npid <gname>:*\t\tGet pid for all processes in a group\npid <name> <name>\tGet pid for multiple named processes\npid\t\t\tGet all process pid info"
+            "pid": "pid <name>\tGet pid for a single process\npid <gname>:*\t\tGet pid for all processes in a group\npid <name> <name>\tGet pid for multiple named processes\npid\t\t\tGet all process pid info",
+            "config": "config <path>\t\tReload configuration file from path and use command reload to apply changes"
         }
         self.program_status = {}
         self.logger = logger
@@ -142,10 +144,17 @@ class CommandHandler:
 
         client_socket.send(status_string.encode())
 
-    def reload(self, config_data, client_socket):
-        self.taskmaster.reload(config_data)
-        response = "Configuration updated\n"
-        self.logger.info("Configuration updated")
+    def reload_task(self, config_data, client_socket):
+        if config_data is None:
+            response = "Error: Invalid configuration or need to add configuration with command: config <path>\n"
+            self.logger.error("Error: Invalid configuration or need to add configuration")
+        else:
+            prs = parser_config.create_parser(config_data, self.logger)
+            config_data = prs.parse()["programs"]
+            print(config_data)
+            self.taskmaster.reload(config_data)
+            response = "Configuration updated\n"
+            self.logger.info("Configuration updated")
         client_socket.send(response.encode())
 
     def send_help_info(self, client_socket):

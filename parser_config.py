@@ -1,56 +1,58 @@
+import argparse
 import yaml
 import os
-from validation import validate_config
-
-def parse_config(config_file):
-    with open(config_file, 'r') as file:
-        try:
-            config = yaml.safe_load(file)
-            validate_config(config)
-            return config
-        except yaml.YAMLError as e:
-            print(f"Ошибка при чтении конфигурационного файла: {e}")
-            return None
 
 
-class Parser:
-    def __init__(self):
-        self.config_data = None
+# This class is used to parse the taskmaster.yaml file and return the data as a dictionary
+class Parser_config:
 
-    def parse_from_file(self, file_path):
-        if os.path.isfile(file_path) and \
-                (file_path.lower().endswith('.yaml') or file_path.lower().endswith('.yml')):
-            with open(file_path, 'r') as stream:
+    def __init__(self, file_path, logger):
+        self.file_path = file_path
+        self.logger = logger
+
+
+    def parse(self):
+        if os.path.isfile(self.file_path) and \
+                (self.file_path.lower().endswith('.yaml') or self.file_path.lower().endswith('.yml')):
+            with open(self.file_path, 'r') as stream:
                 try:
                     config_data = yaml.safe_load(stream)
                     if config_data is not None and isinstance(config_data, dict):
-                        self.config_data = config_data
-                        validate_config(config_data)
+                        return config_data
                     else:
-                        print("File content is not a valid YAML dictionary: " + file_path)
+                        print("File content is not a valid YAML dictionary: " + self.file_path)
+                        self.logger.error("File content is not a valid YAML dictionary: " + self.file_path)
+                        exit(1)
                 except yaml.YAMLError as exc:
                     if hasattr(exc, 'problem_mark'):
                         mark = exc.problem_mark
                         error_location = f"Line {mark.line + 1}, Column {mark.column + 1}"
                         print(f"YAML parsing error at {error_location}: {exc.problem}")
+                        self.logger.error(f"YAML parsing error at {error_location}: {exc.problem}")
+                        exit(1)
                     else:
                         print("Error parsing YAML: " + str(exc))
+                        self.logger.error("Error parsing YAML: " + str(exc))
+                        exit(1)
         else:
-            print("Invalid or missing .yaml or .yml file: " + file_path)
+            print("Invalid or missing .yaml or .yml file: " + self.file_path)
+            self.logger.error("Invalid or missing .yaml or .yml file: " + self.file_path)
+            exit(1)
 
-    def parse_from_default_paths(self):
-        default_config_paths = [
-            '/etc/taskmaster.yaml',
-            '/etc/taskmaster/taskmaster.yaml',
-            '/etc/taskmaster.yml',
-            '/etc/taskmaster/taskmaster.yml',
-            './taskmaster.yaml'
-        ]
 
+def create_parser(config_path, logger):
+    default_config_paths = ['taskmaster.yaml', '/etc/taskmaster.yaml', '/etc/taskmaster/taskmaster.yaml',
+                            '/etc/taskmaster.yml', '/etc/taskmaster/taskmaster.yml']
+
+    if config_path is None:
         for path in default_config_paths:
             if os.path.isfile(path):
-                self.parse_from_file(path)
-                return
+                config_path = path
+                break
+            else:
+                print("No configuration file provided and no default configuration file found.")
+                logger.error("No configuration file provided and no default configuration file found.")
+                exit(1)
 
-    def get_config_data(self):
-        return self.config_data
+    config_parser = Parser_config(config_path, logger)
+    return config_parser

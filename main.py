@@ -1,7 +1,7 @@
 import time
 import logging
 
-import parser
+import parser_config
 
 from taskmaster import Taskmaster
 
