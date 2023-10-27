@@ -31,8 +31,10 @@ class Taskmaster:
         same = set(self._config.keys()) & set(config.keys())
 
         for group in removed:
-            def on_stop(pid: int, group=group):
-               if all(process.state in [ProcessState.stopped, ProcessState.exited, ProcessState.fatal] for process in self._groups[group].processes.values()): 
+            def on_stop(process_name: str, pid: int, group=group):
+                process = Context.get_process(pid)
+
+                if all(process.state in [ProcessState.stopped, ProcessState.exited, ProcessState.fatal] for process in self._groups[group].processes.values()): 
                     del self._groups[group]
 
             for process in self._groups[group].processes.values():
@@ -42,11 +44,14 @@ class Taskmaster:
             self._groups[group] = Group(group, config[group], self._logger)
 
             for process in self._groups[group].processes.values():
-                self._groups[group].start(process.name)
+                if self._groups[group].program.autostart:
+                    self._groups[group].start(process.name)
 
         for group in same:
             if self._config[group] != config[group]:
-                def on_stop(pid: int, group=group):
+                def on_stop(process_name: str, pid: int, group=group):
+                    process = Context.get_process(pid)
+
                     if all(process.state in [ProcessState.stopped, ProcessState.exited, ProcessState.fatal] for process in self._groups[group].processes.values()): 
                         del self._groups[group]
 
