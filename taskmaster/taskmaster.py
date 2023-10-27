@@ -7,7 +7,7 @@ import threading
 import logging
 import time
 
-from typing import List, Dict, Any, Callable
+from typing import List, Dict, Any, Callable, Union
 
 from .group import Group
 from .context import Context
@@ -98,7 +98,7 @@ class Taskmaster:
 
         return False
 
-    def status(self, group_name: str, process_name: str = None) -> Process | List[Process] | None:
+    def status(self, group_name: str, process_name: str = None) -> Union[Process, List[Process], None]:
         if group_name in self._groups.keys():
             if process_name is not None:
                 return self._groups[group_name].status(process_name)

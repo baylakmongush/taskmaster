@@ -1,6 +1,8 @@
 import select
 import socket
 import os
+import time
+
 from serialization import deserialize_config
 from command_handler import CommandHandler
 import logging
@@ -8,19 +10,16 @@ import parser
 from taskmaster import Taskmaster
 import signal
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    filename='logs/server.log'
-)
 
 class TaskMasterCtlServer:
-    def __init__(self, socket_path, taskmaster):
+    def __init__(self, socket_path, taskmaster, config, logger):
         self.socket_path = socket_path
         self.server_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.should_exit = False
         self.taskmaster = taskmaster
         self.client_sockets = []
+        self.config = config
+        self.logger = logger
 
     def start(self):
         signal.signal(signal.SIGTERM, self.handle_signal)
@@ -34,7 +33,7 @@ class TaskMasterCtlServer:
         self.server_socket.listen(1)
 
     def handle_client(self, client_socket):
-        command_handler = CommandHandler(self.taskmaster)
+        command_handler = CommandHandler(self.taskmaster, self.logger)
         while not self.should_exit:
             command = client_socket.recv(1024).decode()
             if not command:
@@ -132,6 +131,7 @@ class TaskMasterCtlServer:
                 readable, _, _ = select.select([self.server_socket] + self.client_sockets, [], [])
                 for sock in readable:
                     if sock == self.server_socket:
+                        time.sleep(1)
                         client_socket, _ = self.server_socket.accept()
                         self.client_sockets.append(client_socket)
                     else:
@@ -145,12 +145,15 @@ class TaskMasterCtlServer:
     def handle_signal(self, signum, frame):
         if signum in (signal.SIGTERM, signal.SIGINT, signal.SIGQUIT):
             print(f"Received signal {signum}. Exiting...")
+            self.logger.info(f"Received signal {signum}. Exiting...")
             self.shutdown_server()
         elif signum == signal.SIGHUP:
             print("Received SIGHUP signal. Reloading configuration...")
+            self.logger.info("Received SIGHUP signal. Reloading configuration...")
             self.reload_configuration()
         elif signum == signal.SIGUSR2:
             print("Received SIGUSR2 signal. Closing and reopening logs...")
+            self.logger.info("Received SIGUSR2 signal. Closing and reopening logs...")
             self.close_and_reopen_logs()
 
     def shutdown_server(self):
@@ -161,8 +164,7 @@ class TaskMasterCtlServer:
 
 
     def reload_configuration(self):
-        # код для перезагрузки конфигурации
-        pass
+        self.taskmaster.reload(self.config)
 
     def close_and_reopen_logs(self):
         # код для закрытия и повторного открытия логов
@@ -189,11 +191,11 @@ def setup_logger():
 
 if __name__ == "__main__":
     socket_path = "sock/taskmaster_socket"
-    logging.info(f"Server listen to socket: {socket_path}")
     setup_logger_debug = setup_logger()
+    setup_logger_debug.info(f"Server listen to socket: {socket_path}")
     taskmaster = Taskmaster(setup_logger_debug)
     prs = parser.create_parser()
     config = prs.parse()["programs"]
     taskmaster.reload(config)
-    server = TaskMasterCtlServer(socket_path, taskmaster)
+    server = TaskMasterCtlServer(socket_path, taskmaster, config, setup_logger_debug)
     server.run()

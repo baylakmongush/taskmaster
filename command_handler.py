@@ -1,13 +1,11 @@
 
 import threading
-
-from typing import Dict, List
-
 from taskmaster import Process
+
 
 class CommandHandler:
 
-    def __init__(self, taskmaster):
+    def __init__(self, taskmaster, logger):
 
         self.taskmaster = taskmaster
         self.available_commands = [
@@ -29,11 +27,24 @@ class CommandHandler:
             "pid": "pid <name>\tGet pid for a single process\npid <gname>:*\t\tGet pid for all processes in a group\npid <name> <name>\tGet pid for multiple named processes\npid\t\t\tGet all process pid info"
         }
         self.program_status = {}
+        self.logger = logger
+
+    def get_total_processes_in_group(self, group_name, process_name):
+        status = self.taskmaster.status(group_name, process_name if len(process_name) > 0 else None)
+        if isinstance(status, list):
+            return len(status)
+        elif isinstance(status, Process):
+            return 1
+        else:
+            return 0
 
     def start_task(self, client_socket, group_name, process_name):
         pids = []
         event = threading.Event()
         lock = threading.Lock()
+        total_processes = self.get_total_processes_in_group(group_name, process_name)
+        self.success_count = 0
+        self.failure_count = 0
 
         def on_spawn(pid: int):
             """
@@ -41,43 +52,28 @@ class CommandHandler:
             """
             with lock:
                 pids.append(pid)
-
-                event.set()
-
+                self.success_count += 1
+                if self.success_count + self.failure_count == total_processes:
+                    event.set()
         def on_fail(pid: int):
             """
             This process DID NOT start in startsecs, do something about it
             """
             with lock:
                 pids.append(pid)
+                self.failure_count += 1
+                if self.success_count + self.failure_count == total_processes:
+                    event.set()
 
-                event.set()
+        success = self.taskmaster.start(group_name, process_name if len(process_name) > 0 else None, on_spawn, on_fail)
 
-        success: bool | Dict[str, bool]  = self.taskmaster.start(group_name, process_name if len(process_name) > 0 else None, on_spawn, on_fail)
-
-        if isinstance(success, bool):
-            how_many_to_wait: int = 1 if success else 0
-        else:
-            how_many_to_wait: int = len(list(filter(lambda suc: suc, success.values())))
-
-        while how_many_to_wait > 0:
-            how_many_to_wait -= 1
-
+        if success:
             event.wait()
-
-        if isinstance(success, bool) and success:
-            if not success:
-                # This process DID NOT start and never tried to be started, process state violation, when the process is in state where it's impossible to start it
-                client_socket.send(f"process {process_name} cannot be started".encode())
+            client_socket.send(f"started: {str(pids)}".encode())
+            self.logger.info(f"started: {str(pids)}")
         else:
-            for k, v in success.items():
-                if not v:
-                    # This process DID NOT start and never tried to be started, process state violation, when the process is in state where it's impossible to start it
-                    client_socket.send(f"process {k} cannot be started".encode())
-
-        client_socket.send(f"started: {str(pids)}".encode())
-
-        event.clear()
+            client_socket.send("Failed to start processes.".encode())
+            self.logger.error("Failed to start processes.")
 
     def stop_task(self, client_socket, group_name, process_name):
         pids = []
@@ -87,15 +83,20 @@ class CommandHandler:
         def callback(pid):
             with lock:
                 pids.append(pid)
-            event.set()
+                print(pids)
+                total_processes = self.get_total_processes_in_group(group_name, process_name)
+                if len(pids) == total_processes:
+                    event.set()
 
-        success: bool | Dict[str, bool] = self.taskmaster.stop(group_name, process_name if len(process_name) > 0 else None, callback)
+        success = self.taskmaster.stop(group_name, process_name if len(process_name) > 0 else None, callback)
 
-        event.wait()
-
-        client_socket.send(f"stopped: {str(pids)}".encode())
-
-        event.clear()
+        if success:
+            event.wait()
+            client_socket.send(f"stopped: {str(pids)}".encode())
+            self.logger.info(f"stopped: {str(pids)}")
+        else:
+            client_socket.send("Failed to stop processes.".encode())
+            self.logger.error("Failed to stop processes.")
 
     def restart_task(self, client_socket, group_name, process_name):
         pids = []
@@ -105,13 +106,20 @@ class CommandHandler:
         def callback(pid):
             with lock:
                 pids.append(pid)
-            event.set()
+                print(pids)
+                total_processes = self.get_total_processes_in_group(group_name, process_name)
+                if len(pids) == total_processes:
+                    event.set()
 
-        success: bool | Dict[str, bool] = self.taskmaster.restart(group_name, process_name if len(process_name) > 0 else None, callback)
+        success = self.taskmaster.restart(group_name, process_name if len(process_name) > 0 else None, callback)
 
-        event.wait()
-
-        client_socket.send(f"restarted: {str(pids)}".encode())
+        if success:
+            event.wait()
+            client_socket.send(f"restarted: {str(pids)}".encode())
+            self.logger.info(f"restarted: {str(pids)}")
+        else:
+            client_socket.send("Failed to restart processes.".encode())
+            self.logger.error("Failed to restart processes.")
 
     def get_pid(self, client_socket, group_name, process_name):
         result: int = self.taskmaster.pid(group_name, process_name)
@@ -122,7 +130,7 @@ class CommandHandler:
         client_socket.send(response.encode())
 
     def get_status(self, client_socket, group_name, process_name):
-        response: None | Process | List[Process] = self.taskmaster.status(group_name, process_name if len(process_name) > 0 else None)
+        response = self.taskmaster.status(group_name, process_name if len(process_name) > 0 else None)
 
         if isinstance(response, list):
             status_string = ""
@@ -137,6 +145,7 @@ class CommandHandler:
     def reload(self, config_data, client_socket):
         self.taskmaster.reload(config_data)
         response = "Configuration updated\n"
+        self.logger.info("Configuration updated")
         client_socket.send(response.encode())
 
     def send_help_info(self, client_socket):
