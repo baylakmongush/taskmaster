@@ -68,16 +68,6 @@ def main():
         print(f"Error: The specified configuration file '{config_path}' does not exist.")
         exit(1)
 
-    if config_path:
-        with open(config_path, 'r') as file:
-            try:
-                config = yaml.safe_load(file)
-                serialize_config(config)
-                client.send_config(args.config)
-            except yaml.YAMLError as e:
-                print(f"Ошибка при чтении конфигурационного файла: {e}")
-                return None
-
     # Send a command if command-line arguments are provided
     if args.command:
         command = " ".join(args.command)
@@ -96,6 +86,9 @@ def main():
                 break
             except EOFError:
                 print("Ctrl+D pressed...")
+                break
+            except BrokenPipeError:
+                print("Server connection closed...")
                 break
 
     client.close()

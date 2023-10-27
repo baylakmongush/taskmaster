@@ -1,6 +1,6 @@
-import argparse
 import yaml
 import os
+import validation
 
 
 # This class is used to parse the taskmaster.yaml file and return the data as a dictionary
@@ -18,7 +18,12 @@ class Parser_config:
                 try:
                     config_data = yaml.safe_load(stream)
                     if config_data is not None and isinstance(config_data, dict):
-                        return config_data
+                        if validation.validate_config(config_data):
+                            return config_data
+                        else:
+                            print("File content is not a valid YAML dictionary: " + self.file_path)
+                            self.logger.error("File content is not a valid YAML dictionary: " + self.file_path)
+                            exit(1)
                     else:
                         print("File content is not a valid YAML dictionary: " + self.file_path)
                         self.logger.error("File content is not a valid YAML dictionary: " + self.file_path)
