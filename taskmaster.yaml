@@ -1,18 +1,5 @@
 programs:
   sleep:
     command: sleep 360
-    numprocs: 100
-    autostart: true
-    autorestart: always
-    exitcodes: [0, 2]
-    startsecs: 3
-    startretries: 3
-    stopsignal: SIGTERM
-    stopwaitsecs: 10
-    stdout: ./out.log
-    stderr: ./err.log
-    environment:
-      ENV_VAR1: value1
-      ENV_VAR2: value2
-    workingdir: /tmp
-    umask: 777
+    numprocs: 3
+

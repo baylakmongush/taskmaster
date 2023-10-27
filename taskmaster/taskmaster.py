@@ -60,7 +60,7 @@ class Taskmaster:
 
         self._config = config
 
-    def start(self, group_name: str, process_name: str = None) -> Dict[str, Tuple[int, bool]] | None:
+    def start(self, group_name: str, process_name: str = None) -> Dict[str, Tuple[int, bool]]:
         if group_name in self._groups.keys():
             process_count = 0
             result = dict()
@@ -98,7 +98,7 @@ class Taskmaster:
             return result
         return None
 
-    def stop(self, group_name: str, process_name: str = None) -> Dict[str, Tuple[int, bool]] | None:
+    def stop(self, group_name: str, process_name: str = None) -> Dict[str, Tuple[int, bool]]:
         if group_name in self._groups.keys():
             process_count = 0
             result = dict()
@@ -129,7 +129,7 @@ class Taskmaster:
             return result
         return None
 
-    def restart(self, group_name: str, process_name: str = None) -> Dict[str, Tuple[int, bool]] | None:
+    def restart(self, group_name: str, process_name: str = None) -> Dict[str, Tuple[int, bool]]:
         if group_name in self._groups.keys():
             process_count = 0
             result = dict()
@@ -187,7 +187,7 @@ class Taskmaster:
                 return self._groups[group_name].processes[process_name].pid
         return -1
 
-    def attach(self, group_name: str, process_name: str) -> None | str:
+    def attach(self, group_name: str, process_name: str) -> None:
         if group_name not in self._groups.keys():
             return None
 
