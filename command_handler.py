@@ -48,7 +48,16 @@ class CommandHandler:
         client_socket.send(str(self.taskmaster.stop(group_name, process_name if len(process_name) > 0 else None)).encode())
 
     def restart_task(self, client_socket, group_name, process_name):
-        client_socket.send(str(self.taskmaster.restart(group_name, process_name if len(process_name) > 0 else None)).encode())
+        result = self.taskmaster.restart(group_name, process_name if len(process_name) > 0 else None)
+
+        if result is not None:
+            for k, v in result.items():
+                if v[1]:
+                    self.logger.info(f"Program {k}({v[0]}) successfully restarted")
+                else:
+                    self.logger.info(f"Program {k}({v[0]}) failed to restart")
+
+        client_socket.send(str(result).encode())
 
     def get_pid(self, client_socket, group_name, process_name):
         result: int = self.taskmaster.pid(group_name, process_name)
