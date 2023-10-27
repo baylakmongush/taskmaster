@@ -7,7 +7,7 @@ import threading
 import logging
 import time
 
-from typing import List, Dict, Any, Callable, Union
+from typing import List, Dict, Any, Callable, Union, Tuple
 
 from .group import Group
 from .context import Context
@@ -35,12 +35,14 @@ class Taskmaster:
                if all(process.state in [ProcessState.stopped, ProcessState.exited, ProcessState.fatal] for process in self._groups[group].processes.values()): 
                     del self._groups[group]
 
-            self.stop(group, None, on_stop)
+            for process in self._groups[group].processes.values():
+                self._groups[group].stop(process.name, on_stop)
 
         for group in added:
             self._groups[group] = Group(group, config[group], self._logger)
 
-            self.start(group)
+            for process in self._groups[group].processes.values():
+                self._groups[group].start(process.name)
 
         for group in same:
             if self._config[group] != config[group]:
@@ -50,53 +52,120 @@ class Taskmaster:
 
                         self._groups[group] = Group(group, config[group], self._logger)
 
-                        self.start(group)
+                        for process in self._groups[group].processes.values():
+                            self._groups[group].start(process.name)
 
-                self.stop(group, None, on_stop)
+                for process in self._groups[group].processes.values():
+                    self._groups[group].stop(process.name, on_stop)
 
         self._config = config
 
-    def start(self, group_name: str, process_name: str = None, on_spawn: Callable[[int], None] = None, on_fail: Callable[[int], None] = None) -> bool:
+    def start(self, group_name: str, process_name: str = None) -> Dict[str, Tuple[int, bool]] | None:
         if group_name in self._groups.keys():
+            process_count = 0
+            result = dict()
+            lock = threading.Lock()
+
+            def on_spawn(name: str, pid: int):
+                nonlocal process_count
+
+                with lock:
+                    result[name] = (pid, True)
+                    process_count -= 1
+
+            def on_fail(name: str, pid: int):
+                nonlocal process_count
+
+                with lock:
+                    result[name] = (pid, False)
+                    process_count -= 1
+
             if process_name is not None:
-                return self._groups[group_name].start(process_name, on_spawn, on_fail)
+                result[process_name] = (0, False)
+
+                if self._groups[group_name].start(process_name, on_spawn, on_fail):
+                    process_count += 1
             else:
-                status = dict()
-
                 for process in self._groups[group_name].processes.values():
-                    status[process.name] = self._groups[group_name].start(process.name, on_spawn, on_fail)
+                    result[process.name] = (0, False)
 
-                return status
+                    if self._groups[group_name].start(process.name, on_spawn, on_fail):
+                        process_count += 1
 
-        return False
+            while process_count != 0:
+                time.sleep(0.1)
 
-    def stop(self, group_name: str, process_name: str = None, on_kill: Callable[[int], None] = None) -> bool:
+            return result
+        return None
+
+    def stop(self, group_name: str, process_name: str = None) -> Dict[str, Tuple[int, bool]] | None:
         if group_name in self._groups.keys():
+            process_count = 0
+            result = dict()
+            lock = threading.Lock()
+
+            def on_kill(name: str, pid: int):
+                nonlocal process_count
+
+                with lock:
+                    result[name] = (pid, True)
+                    process_count -= 1
+
             if process_name is not None:
-                return self._groups[group_name].stop(process_name, on_kill)
+                result[process_name] = (0, False)
+
+                if self._groups[group_name].stop(process_name, on_kill):
+                    process_count += 1
             else:
-                status = dict()
-
                 for process in self._groups[group_name].processes.values():
-                    status[process.name] = self._groups[group_name].stop(process.name, on_kill)
+                    result[process.name] = (0, False)
 
-                return status
+                    if self._groups[group_name].stop(process.name, on_kill):
+                        process_count += 1
 
-        return False
+            while process_count != 0:
+                time.sleep(0.1)
 
-    def restart(self, group_name: str, process_name: str = None, on_spawn: Callable[[int], None] = None) -> bool:
+            return result
+        return None
+
+    def restart(self, group_name: str, process_name: str = None) -> Dict[str, Tuple[int, bool]] | None:
         if group_name in self._groups.keys():
+            process_count = 0
+            result = dict()
+            lock = threading.Lock()
+
+            def on_spawn(name: str, pid: int):
+                nonlocal process_count
+
+                with lock:
+                    result[name] = (pid, True)
+                    process_count -= 1
+
+            def on_fail(name: str, pid: int):
+                nonlocal process_count
+
+                with lock:
+                    result[name] = (pid, False)
+                    process_count -= 1
+
             if process_name is not None:
-                return self._groups[group_name].restart(process_name, on_spawn)
+                result[process_name] = (0, False)
+
+                if self._groups[group_name].restart(process_name, on_spawn, on_fail):
+                    process_count += 1
             else:
-                status = dict()
-
                 for process in self._groups[group_name].processes.values():
-                    status[process.name] = self._groups[group_name].restart(process.name, on_spawn)
+                    result[process.name] = (0, False)
 
-                return status
+                    if self._groups[group_name].restart(process.name, on_spawn, on_fail):
+                        process_count += 1
 
-        return False
+            while process_count != 0:
+                time.sleep(0.1)
+
+            return result
+        return None
 
     def status(self, group_name: str, process_name: str = None) -> Union[Process, List[Process], None]:
         if group_name in self._groups.keys():
@@ -117,6 +186,32 @@ class Taskmaster:
             if process_name in self._groups[group_name].processes.keys():
                 return self._groups[group_name].processes[process_name].pid
         return -1
+
+    def attach(self, group_name: str, process_name: str) -> None | str:
+        if group_name not in self._groups.keys():
+            return None
+
+        if process_name not in self._groups[group_name].processes.keys():
+            return None
+
+        current_position = 0
+        filename = self._groups[group_name].program.stdout_logfile
+
+        while True:
+            if os.path.getsize(filename) > current_position:
+                try:
+                    with open(filename, 'r') as file:
+                        file.seek(current_position)
+                        
+                        new_logs = file.read()
+
+                        current_position = file.tell()
+
+                        yield new_logs
+                except Exception:
+                    yield None
+            else:
+                yield ""
 
     def _sigchld_handler(self):
         try:

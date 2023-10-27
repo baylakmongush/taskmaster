@@ -27,7 +27,7 @@ class TaskMasterCtlServer:
         signal.signal(signal.SIGINT, self.handle_signal)
         signal.signal(signal.SIGQUIT, self.handle_signal)
         signal.signal(signal.SIGHUP, self.handle_signal)
-        signal.signal(signal.SIGUSR2, self.handle_signal)
+        # signal.signal(signal.SIGUSR2, self.handle_signal)
         if os.path.exists(self.socket_path):
             os.unlink(self.socket_path)
         self.server_socket.bind(self.socket_path)
@@ -143,6 +143,19 @@ class TaskMasterCtlServer:
             elif action == "version":
                 response = "1.0\n"
                 client_socket.send(response.encode())
+            elif action == "attach":
+                if args:
+                    task_name = " ".join(args)
+                    if ":" in task_name:
+                        group_name, process_name = task_name.split(":")
+                        if group_name is not None and len(process_name) > 0:
+                            command_handler.attach(client_socket, group_name, process_name)
+                        else:
+                            response = "Error: Group name and Process name are missing.\n"
+                            client_socket.send(response.encode())
+                    else:
+                        response = "Error: Command should be in the format 'attach group_name:process_name'\n"
+                        client_socket.send(response.encode())
             else:
                 response = f"*** Unknown syntax: {command}\n"
                 client_socket.send(response.encode())

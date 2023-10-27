@@ -1,11 +1,12 @@
-
 import threading
+import socket
+import time
+
 from taskmaster import Process
 import parser_config
 
 
 class CommandHandler:
-
     def __init__(self, taskmaster, logger):
 
         self.taskmaster = taskmaster
@@ -41,87 +42,13 @@ class CommandHandler:
             return 0
 
     def start_task(self, client_socket, group_name, process_name):
-        pids = []
-        event = threading.Event()
-        lock = threading.Lock()
-        total_processes = self.get_total_processes_in_group(group_name, process_name)
-        self.success_count = 0
-        self.failure_count = 0
-
-        def on_spawn(pid: int):
-            """
-            This process has been successfully started within startsecs window
-            """
-            with lock:
-                pids.append(pid)
-                self.success_count += 1
-                if self.success_count + self.failure_count == total_processes:
-                    event.set()
-        def on_fail(pid: int):
-            """
-            This process DID NOT start in startsecs, do something about it
-            """
-            with lock:
-                pids.append(pid)
-                self.failure_count += 1
-                if self.success_count + self.failure_count == total_processes:
-                    event.set()
-
-        success = self.taskmaster.start(group_name, process_name if len(process_name) > 0 else None, on_spawn, on_fail)
-
-        if success:
-            event.wait()
-            client_socket.send(f"started: {str(pids)}".encode())
-            self.logger.info(f"started: {str(pids)}")
-        else:
-            client_socket.send("Failed to start processes.".encode())
-            self.logger.error("Failed to start processes.")
+        client_socket.send(str(self.taskmaster.start(group_name, process_name if len(process_name) > 0 else None)).encode())
 
     def stop_task(self, client_socket, group_name, process_name):
-        pids = []
-        event = threading.Event()
-        lock = threading.Lock()
-
-        def callback(pid):
-            with lock:
-                pids.append(pid)
-                print(pids)
-                total_processes = self.get_total_processes_in_group(group_name, process_name)
-                if len(pids) == total_processes:
-                    event.set()
-
-        success = self.taskmaster.stop(group_name, process_name if len(process_name) > 0 else None, callback)
-
-        if success:
-            event.wait()
-            client_socket.send(f"stopped: {str(pids)}".encode())
-            self.logger.info(f"stopped: {str(pids)}")
-        else:
-            client_socket.send("Failed to stop processes.".encode())
-            self.logger.error("Failed to stop processes.")
+        client_socket.send(str(self.taskmaster.stop(group_name, process_name if len(process_name) > 0 else None)).encode())
 
     def restart_task(self, client_socket, group_name, process_name):
-        pids = []
-        event = threading.Event()
-        lock = threading.Lock()
-
-        def callback(pid):
-            with lock:
-                pids.append(pid)
-                print(pids)
-                total_processes = self.get_total_processes_in_group(group_name, process_name)
-                if len(pids) == total_processes:
-                    event.set()
-
-        success = self.taskmaster.restart(group_name, process_name if len(process_name) > 0 else None, callback)
-
-        if success:
-            event.wait()
-            client_socket.send(f"restarted: {str(pids)}".encode())
-            self.logger.info(f"restarted: {str(pids)}")
-        else:
-            client_socket.send("Failed to restart processes.".encode())
-            self.logger.error("Failed to restart processes.")
+        client_socket.send(str(self.taskmaster.restart(group_name, process_name if len(process_name) > 0 else None)).encode())
 
     def get_pid(self, client_socket, group_name, process_name):
         result: int = self.taskmaster.pid(group_name, process_name)
@@ -130,6 +57,20 @@ class CommandHandler:
         else:
             response = f"{group_name}:{process_name} UNKNOWN\n"
         client_socket.send(response.encode())
+
+    def attach(self, client_socket: socket.socket, group_name, process_name):
+        while True:
+            logs = self.taskmaster.attach(group_name, process_name)
+
+            if logs is None:
+                break;
+
+            try:
+                client_socket.send(logs.encode())
+            except Exception:
+                break;
+
+            time.sleep(0.5)
 
     def get_status(self, client_socket, group_name, process_name):
         response = self.taskmaster.status(group_name, process_name if len(process_name) > 0 else None)

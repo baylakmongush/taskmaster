@@ -57,7 +57,7 @@ class Process:
         self._lock = threading.Lock()
         self._pid = 0
 
-    def spawn(self, on_spawn: Callable[[int], None] = None, on_fail: Callable[[int], None] = None) -> bool:
+    def spawn(self, on_spawn: Callable[[str, int], None] = None, on_fail: Callable[[str, int], None] = None) -> bool:
         """
         This method will ALWAYS spawn new process, rewriting the state, 
             so be careful with it and make sure to check the state before spawning
@@ -89,6 +89,8 @@ class Process:
                 os.umask(self._program.umask)
             except Exception:
                 pass
+
+            signal.signal(self._program.stopsignal, lambda s, f: sys.exit(process.normal_exit_codes[0]))
 
             os.execvpe(self._program.command[0], self._program.command, self._program.environment)
         else:
@@ -122,7 +124,7 @@ class Process:
                     self._state = ProcessState.fatal
                     self._restarts = 0
 
-                    threading.Thread(target=self._on_fail, args=[self._pid]).start() if self._on_fail is not None else None
+                    threading.Thread(target=self._on_fail, args=[self._name, self._pid]).start() if self._on_fail is not None else None
 
             elif self._state == ProcessState.running:
                 self._logger.info(f"stopped: process {self._name} pid {self._pid} exited with exit_code {exit_code}, expected: {exit_code in self._program.exitcodes}")
@@ -145,15 +147,17 @@ class Process:
 
                 self._stop_timer.cancel() if self._stop_handler is not None else None
 
-                threading.Thread(target=self._on_kill, args=[self._pid]).start() if self._on_kill is not None else None
+                pid = self._pid
 
                 self._pid = 0
+
+                threading.Thread(target=self._on_kill, args=[self._name, pid]).start() if self._on_kill is not None else None
             else:
                 self._logger.critical(f"process {self._name} end up in unknown state")
 
                 self._state = ProcessState.unknown
 
-    def kill(self, on_kill: Callable[[int], int] = None) -> bool:
+    def kill(self, on_kill: Callable[[str, int], int] = None) -> bool:
         """
         This method is protected with lock because of sigchld signal 
             which could be running at the same time, graceful shutdown first,
@@ -195,14 +199,18 @@ class Process:
         file = None
 
         if logfile == "AUTO":
-            file = tempfile.NamedTemporaryFile(mode="w", delete=False, prefix=self._name, suffix=suffix)
+            file = tempfile.NamedTemporaryFile(mode="w", delete=False, prefix=f"{self._name}.", suffix=suffix)
         elif logfile == "NONE":
             file = open("/dev/null", "w")
         else:
             try:
-                file = open(logfile, "w")
+                file = open(logfile, "a")
             except Exception:
                 file = open("/dev/null", "w")
+
+        self._logger.debug(f"Setting up log file for program({fd}) {self._name} on {file.name}")
+
+        self._program.stdout_logfile = file.name
 
         os.dup2(file.fileno(), fd)
 
@@ -215,7 +223,7 @@ class Process:
                 self._restarts = 0
                 self._timestamp = time.time()
 
-                threading.Thread(target=self._on_spawn, args=[self._pid]).start() if self._on_spawn is not None else None
+                threading.Thread(target=self._on_spawn, args=[self._name, self._pid]).start() if self._on_spawn is not None else None
 
     def _stop_handler(self):
         with self._lock:
